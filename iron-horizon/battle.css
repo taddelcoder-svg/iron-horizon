@@ -1,0 +1,35 @@
+/* Match HUD and explicit pointer-lock states. */
+.map-picker{max-width:370px;margin:0 0 14px;pointer-events:auto}.map-picker label{display:flex;justify-content:space-between;font:9px monospace;letter-spacing:1.5px;color:#bdc7b4;margin-bottom:8px}.map-picker label span{color:var(--orange)}.map-picker select{width:100%;padding:10px 12px;border:1px solid #ffffff40;background:#1b2a21;color:#f1e4c8;font:12px Bricolage,Arial,sans-serif;cursor:pointer}.map-picker select:focus-visible{outline:2px solid var(--orange);outline-offset:3px}.map-picker p{font-size:10px;line-height:1.5;color:#acb9a2;margin:7px 0 0}.location strong{font-weight:400}
+.intro{top:16%}
+#driveStatus{font:8px monospace;letter-spacing:1px;color:#aebfa2}
+#score{font:10px monospace;color:var(--orange);letter-spacing:1px}
+.pointer-locked,.pointer-locked *{cursor:none!important}
+.aim-active #world{cursor:none}
+.modal{overflow-y:auto;padding:20px 0}.panel{margin:auto}
+#hud,.vehicle-labels,.respawn,.damage-flash{pointer-events:none}
+.playing .topbar{pointer-events:none}.playing #pauseButton{pointer-events:auto}
+.training-link{display:block;background:transparent;color:#d6ddca;border:0;border-bottom:1px solid #ffffff40;padding:11px 0 6px;font:11px Bricolage,Arial,sans-serif;margin-top:9px}
+.training-link:hover{color:var(--orange)}
+.training-link:disabled{opacity:.5}
+.vehicle-picker{display:flex;gap:8px;margin:0 0 16px;max-width:370px;pointer-events:auto}
+.vehicle-picker button{flex:1;text-align:left;border:1px solid #ffffff35;padding:11px 12px;background:#17251bc9;color:#cbd4bf}.vehicle-picker button[aria-pressed="true"]{border-color:var(--orange);background:#c3893924;color:var(--orange)}
+.vehicle-picker b{display:block;font:10px monospace;letter-spacing:1px}.vehicle-picker span{display:block;font-size:9px;margin-top:6px;color:#b9c5ae}
+.telemetry .module-status{display:flex;gap:12px;margin:14px 0 0;padding-top:10px;border-top:1px solid #ffffff25}.module-status span{font:8px monospace!important;color:#b1c5a0!important}.module-status .broken{color:#ffae86!important}
+.equipment{position:fixed;bottom:204px;left:50%;transform:translateX(-50%);width:250px;padding:12px 15px;background:#15201ae6;border:1px solid #ffffff30;font:9px monospace;color:#bbc9ac}.equipment>span{display:flex;gap:9px;align-items:center;margin:5px 0 11px}.equipment b{font-weight:400}.equipment kbd{border:1px solid #ffffff45;padding:3px 5px;color:#f2e9cb}.equipment>span:first-child b{margin-left:auto;color:var(--orange)}.repair-track{height:3px;background:#ffffff20}.repair-track i{display:block;width:0;height:100%;background:#abc998}
+.match-hud{position:fixed;top:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:25px;background:#142018d9;border:1px solid #ffffff30;padding:12px 22px}
+.match-hud>b{font:29px Bricolage,sans-serif;color:#94c6db}.match-hud>b:last-child{color:#f2a084}
+.match-hud span{text-align:center}.match-hud small{display:block;font:8px monospace;letter-spacing:2px;color:#b0beab}.match-hud strong{display:block;font:18px monospace;margin-top:5px}
+#captureTrack{height:3px;background:#ffffff25;width:100%;margin-top:3px}#captureBar{display:block;width:0;height:100%;background:var(--orange)}
+.telemetry .health-track{display:block;height:4px;margin:11px 0 12px;background:#ffffff25}.health-track i{display:block;height:100%;background:#a1c390;width:100%}
+.damage-flash{position:fixed;inset:0;box-shadow:inset 0 0 150px 40px #d3493580;z-index:3}
+.respawn{position:fixed;top:34%;left:50%;transform:translateX(-50%);padding:25px 40px;background:#17251ded;border:1px solid #db8f6150;text-align:center;z-index:5}
+.respawn span{font:10px monospace;letter-spacing:2px;color:#eba680}.respawn b{display:block;font-size:23px;margin-top:15px}.respawn i{font-style:normal;color:var(--orange)}
+.vehicle-labels{position:fixed;inset:0;overflow:hidden}.vehicle-label{position:absolute;transform:translate(-50%,-100%);font:9px monospace;letter-spacing:1px;white-space:nowrap;color:#f6bd9c;text-align:center;text-shadow:0 1px 3px #000}.vehicle-label.friendly{color:#b2deef}.vehicle-label i{display:block;height:3px;background:currentColor;margin:5px auto 0;max-width:55px}
+.result-stats{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:25px 0;padding:20px 0;border-block:1px solid #ffffff25}.result-stats span{font:10px monospace;color:#b5c2ab}.result-stats b{display:block;font:26px Bricolage,sans-serif;color:#f4efdc;margin-top:8px}.panel .browser-link{border:1px solid var(--orange);padding:12px;color:var(--orange);line-height:1.5}
+@media(max-height:760px){.intro{top:15%}.intro h1{font-size:58px;margin:16px 0}.menu-foot{margin-top:10px}.training-link{margin-top:4px;padding-top:8px}}
+@media(max-width:800px){.match-hud{top:86px;padding:8px 15px;gap:16px}.match-hud>b{font-size:20px}.playing .compass{top:154px}.objective{top:160px;max-width:220px}.objective b{font-size:12px}.match-hud small{font-size:7px}.respawn{width:90vw;padding:18px}}
+@media(max-height:760px){.intro h1{font-size:48px;margin:12px 0}.intro>p{display:none}.mission{margin:14px 0}.vehicle-picker{margin-bottom:10px}.menu-foot{font-size:7px}.bottom-caption{bottom:18px}}
+@media(max-width:800px){.equipment{bottom:340px;width:210px}.telemetry .module-status{gap:8px;flex-direction:column}.vehicle-picker{max-width:340px}}
+/* Keep the new map choice and both launch buttons accessible on laptop screens. */
+.intro{top:13%;bottom:65px;overflow-y:auto;padding:5px 12px 10px 0;scrollbar-width:thin;pointer-events:auto}.intro h1{font-size:clamp(46px,5.3vw,76px);margin:17px 0}.intro>p:not(#error){display:none}.mission{margin:17px 0;padding-top:15px}
+@media(max-height:760px){.intro{top:100px;bottom:50px}.intro h1{font-size:40px;letter-spacing:-2px;margin:8px 0}.mission{margin:11px 0;padding-top:10px}.map-picker{margin-bottom:10px}.map-picker label{margin-bottom:5px}.map-picker select{padding:8px 10px}.map-picker p{font-size:9px;margin-top:5px}.vehicle-picker button{padding:9px}.primary{padding:15px 20px}.intro .menu-foot{margin-top:9px}}

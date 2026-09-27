@@ -1,0 +1,60 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+(async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
+    const output = fs.mkdtempSync(path.join(os.tmpdir(), 'iron-horizon-systems-'));
+    console.log('Screenshots:', output);
+    const state = () => page.evaluate(() => window.ironHorizon.getState());
+    await page.goto('http://127.0.0.1:4177/iron-horizon/');
+    await page.locator('#selectKeiler').click(); assert.equal((await state()).vehicle, 'keiler');
+    assert.match(await page.locator('#vehicleSpeed').textContent(), /36/); assert.match(await page.locator('#vehicleCalibre').textContent(), /75/);
+    await page.screenshot({ path: path.join(output, 'keiler-garage.png') });
+    await page.reload(); await page.waitForFunction(() => !!window.ironHorizon); assert.equal((await state()).vehicle, 'keiler');
+    await page.locator('#trainingButton').click(); await page.waitForFunction(() => window.ironHorizon.getState().mode === 'playing');
+    await page.keyboard.down('KeyW'); await page.waitForFunction(() => window.ironHorizon.getState().speed >= 9.95); await page.keyboard.up('KeyW');
+    assert.ok((await state()).speed > 8 && (await state()).speed <= 10, 'Keiler top speed should be 36 km/h');
+    await page.keyboard.down('Space'); await page.waitForTimeout(500); await page.keyboard.up('Space');
+    await page.locator('#world').dispatchEvent('mousedown', { button: 0 }); assert.ok((await state()).reload > 4.7, 'Keiler uses five-second reload');
+    await page.keyboard.press('KeyQ'); assert.equal((await state()).systems.smokeCharges, 1); assert.equal((await state()).smokeClouds, 1);
+    await page.keyboard.press('KeyQ'); assert.equal((await state()).systems.smokeCharges, 1, 'Cooldown prevents double use');
+    await page.screenshot({ path: path.join(output, 'smoke.png') });
+    await page.waitForFunction(() => window.ironHorizon.getState().systems.smokeCooldown === 0); await page.keyboard.press('KeyQ'); assert.equal((await state()).systems.smokeCharges, 0);
+    await page.keyboard.press('Escape'); await page.waitForFunction(() => window.ironHorizon.getState().mode === 'paused');
+    await page.locator('#garageButton').click(); assert.equal((await state()).mode, 'menu'); assert.equal((await state()).smokeClouds, 0);
+    assert.equal((await state()).systems.smokeCharges, 2);
+    await page.setViewportSize({ width: 960, height: 640 }); await page.screenshot({ path: path.join(output, 'compact-garage.png') });
+    const picker = await page.locator('#selectKeiler').boundingBox(); const start = await page.locator('#startButton').boundingBox();
+    assert.ok(picker.y + picker.height < start.y && start.y + start.height < 600, 'Vehicle picker and start must fit compact viewport');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // Test-only damaged-vehicle fixture, injected in the browser response; source files are not modified.
+    await page.route('**/systems.js', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: await response.text() + '\n{ const fresh = window.IronSystems.fresh; window.IronSystems.fresh = () => ({ ...fresh(), tracks: 0, engine: 0 }); }' });
+    });
+    await page.reload(); await page.locator('#trainingButton').click(); await page.waitForFunction(() => window.ironHorizon.getState().mode === 'playing');
+    await page.keyboard.down('KeyW'); await page.waitForTimeout(600); await page.keyboard.up('KeyW');
+    assert.equal((await state()).speed, 0); assert.equal((await state()).position.z, 65, 'Destroyed tracks immobilize the player');
+    await page.keyboard.down('KeyR'); await page.waitForFunction(() => window.ironHorizon.getState().systems.repair > 1); assert.ok((await state()).systems.repair > .7);
+    await page.screenshot({ path: path.join(output, 'repair.png') });
+    await page.keyboard.up('KeyR'); await page.waitForTimeout(100); assert.equal((await state()).systems.repair, 0);
+    await page.keyboard.down('KeyR'); await page.waitForFunction(() => window.ironHorizon.getState().systems.repair > 1); await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
+    assert.ok((await state()).systems.repair < .15, 'Firing interrupts repair');
+    await page.waitForFunction(() => window.ironHorizon.getState().systems.tracks === 100, null, { timeout: 20000 }); await page.keyboard.up('KeyR');
+    assert.equal((await state()).systems.tracks, 100); assert.equal((await state()).systems.engine, 100);
+    await page.keyboard.down('KeyW'); await page.waitForTimeout(600); await page.keyboard.up('KeyW'); assert.ok((await state()).position.z < 65);
+    console.log('PASS: garage selection, persistence, Keiler speed/reload, smoke charges, damaged tracks, interrupted and completed repair');
+    await page.unroute('**/systems.js'); await page.reload(); await page.locator('#selectLuchs').click(); await page.locator('#startButton').click();
+    await page.waitForFunction(() => window.ironHorizon.getState().targets.some(t => t.team === 'red' && t.visible), null, { timeout: 35000 });
+    await page.keyboard.press('KeyQ'); await page.waitForTimeout(600);
+    assert.ok((await state()).targets.filter(t => t.team === 'red').every(t => !t.visible), 'Smoke hides enemies from player LOS and minimap');
+    await page.waitForFunction(() => window.ironHorizon.getState().smokeClouds === 0, null, { timeout: 15000 });
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ status: 'PASS', checks: ['vehicle selection', 'profile physics', 'smoke budget/cooldown', 'smoke LOS', 'smoke expiry', 'module immobility', 'repair interruption/completion', 'garage reset', 'compact layout'], screenshots: output }));
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
