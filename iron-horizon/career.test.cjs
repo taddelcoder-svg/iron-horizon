@@ -35,3 +35,9 @@ test('malformed stored data is not silently overwritten', () => {
   store.award('one', 'blue', {}); assert.equal(storage.getItem(C.KEY), '{bad json'); assert.equal(store.state.xp, 300);
   assert.equal(store.commit(C.empty(), true), true); assert.equal(JSON.parse(storage.getItem(C.KEY)).xp, 0);
 });
+test('the Ass difficulty adds a quarter on top; lower levels do not', () => {
+  const stats = { kills: 2, hits: 7, captureSeconds: 23 };
+  assert.equal(C.rewards('blue', stats).xp, 589); assert.equal(C.rewards('blue', stats, 'recruit').xp, 589);
+  const ace = C.rewards('blue', stats, 'ace'); assert.equal(ace.breakdown.difficulty, 147); assert.equal(ace.xp, 736);
+  assert.equal(C.award(C.empty(), 'r', 'blue', stats, 'ace').state.xp, 736);
+});

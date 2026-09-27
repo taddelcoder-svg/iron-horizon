@@ -60,6 +60,7 @@
     $('locationName').textContent = level.name.toUpperCase();
     $('mapCaption').textContent = `${level.name.toUpperCase()} / ${level.number}`;
     $('pause').querySelector('.eyebrow').textContent = `${level.name.toUpperCase()} ${level.number}`;
+    $('difficultyNote').textContent = { recruit: 'Gegner reagieren langsam und streuen stark. Ideal zum Einstieg.', veteran: 'Ausgewogene Gegner mit Flanken und Rauch.', ace: 'Schnelle, genaue Gegner, die auf Seiten und Ketten zielen. +25 % Erfahrung.' }[difficulty];
   }
   function makeTank(color) {
     const root = new T.Group(); const wheels = [];
@@ -133,7 +134,7 @@
     hitMeshes.forEach(mesh => { mesh.userData.vehicle = bot; });
     const label = document.createElement('div'); label.className = 'vehicle-label' + (bot.team === 'blue' ? ' friendly' : ''); label.hidden = true; $('labels').appendChild(label); bot.label = label;
     targets.push(bot);
-    bot.systems = Systems.fresh(); applyProfile(bot, i === 1 || i === 4 ? 'keiler' : 'luchs');
+    bot.systems = Systems.fresh(); applyProfile(bot, i === 1 || i === 3 ? 'keiler' : 'luchs');
   });
   function applyProfile(vehicle, id) {
     vehicle.profile = Systems.profiles[id]; const heavy = id === 'keiler';
@@ -174,13 +175,18 @@
   let sensitivity = 1, soundEnabled = true, shakeEnabled = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Touch devices start in touch mode; a real mouse click switches back (hybrid laptops).
   let touchMode = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
-  let quality = touchMode ? 'medium' : 'high', introSeen = false;
-  let audio, engine, engineGain;
+  let quality = touchMode ? 'medium' : 'high', introSeen = false, difficulty = 'veteran', invertY = false, showFps = false;
+  let matchDifficulty = IronBattle.difficulties.veteran;
+  let audio, engine, engineGain, trackGain, trackPulse, throttleLoad = 0;
   const particleGeometry = new T.SphereGeometry(1, 5, 4);
-  const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a'].map(color => new T.MeshBasicMaterial({ color }));
-  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); soundEnabled = saved.sound !== false; if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; } catch (_) { /* Storage may be disabled. */ }
-  $('sensitivity').value = sensitivity; $('sound').checked = soundEnabled; $('shake').checked = shakeEnabled; $('quality').value = quality;
-  function saveSettings() { try { localStorage.setItem('iron-horizon-settings', JSON.stringify({ sensitivity, sound: soundEnabled, shake: shakeEnabled, vehicle: selectedVehicle, map: selectedMap, quality, intro: introSeen })); } catch (_) {} }
+  const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a', '#fff0b3'].map(color => new T.MeshBasicMaterial({ color }));
+  const events = [], killLog = []; let previousOwner = null, autopilot = false;
+  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); soundEnabled = saved.sound !== false; if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; } catch (_) { /* Storage may be disabled. */ }
+  $('sensitivity').value = sensitivity; $('sound').checked = soundEnabled; $('shake').checked = shakeEnabled; $('quality').value = quality; $('difficultySelect').value = difficulty; $('invertY').checked = invertY; $('showFps').checked = showFps; $('fps').hidden = !showFps;
+  function saveSettings() { try { localStorage.setItem('iron-horizon-settings', JSON.stringify({ sensitivity, sound: soundEnabled, shake: shakeEnabled, vehicle: selectedVehicle, map: selectedMap, quality, intro: introSeen, difficulty, invertY, fps: showFps })); } catch (_) {} }
+  $('difficultySelect').onchange = event => { if (mode !== 'menu' || !Object.hasOwn(IronBattle.difficulties, event.target.value)) return; difficulty = event.target.value; saveSettings(); refreshMapUi(); };
+  $('invertY').onchange = event => { invertY = event.target.checked; saveSettings(); };
+  $('showFps').onchange = event => { showFps = event.target.checked; $('fps').hidden = !showFps; saveSettings(); };
   // Shadows and render resolution are the expensive parts; lower levels keep phones and older laptops fluid.
   function applyQuality() {
     const shadows = quality !== 'low', size = quality === 'high' ? 2048 : 1024;
@@ -251,15 +257,15 @@
   });
   window.addEventListener('storage', event => { if (event.key === Career.KEY && !careerStore.protected) { careerStore.read(); refreshCareer(); if (mode === 'menu') applyPaint(); } });
   async function recordRound() {
-    const id = roundId, result = match.result, finalStats = { ...stats };
+    const id = roundId, result = match.result, finalStats = { ...stats }, difficultyId = matchDifficulty.id;
     $('earnedXp').textContent = 'Erfahrung wird gezählt …'; $('xpBreakdown').textContent = $('unlockNotice').textContent = $('saveStatus').textContent = '';
     try {
       const previousRank = Career.rank(careerStore.state.xp).current.name;
-      const reward = await withCareerLock(() => careerStore.award(id, result, finalStats)); refreshCareer();
+      const reward = await withCareerLock(() => careerStore.award(id, result, finalStats, difficultyId)); refreshCareer();
       if (roundId !== id || mode !== 'result') return;
       $('earnedXp').textContent = `+${reward.xp} EP`;
       const b = reward.breakdown;
-      $('xpBreakdown').textContent = reward.duplicate ? 'Dieses Gefecht wurde bereits verbucht.' : `Gefecht ${b.participation} · Ergebnis ${b.outcome} · Abschüsse ${b.kills} · Treffer ${b.hits} · Zielbeitrag ${b.objective}`;
+      $('xpBreakdown').textContent = reward.duplicate ? 'Dieses Gefecht wurde bereits verbucht.' : `Gefecht ${b.participation} · Ergebnis ${b.outcome} · Abschüsse ${b.kills} · Treffer ${b.hits} · Zielbeitrag ${b.objective}${b.difficulty ? ` · Ass-Bonus ${b.difficulty}` : ''}`;
       const currentRank = Career.rank(careerStore.state.xp).current.name;
       $('unlockNotice').textContent = [currentRank !== previousRank ? `Neuer Rang: ${currentRank}` : '', ...reward.unlocks.map(p => `Freigeschaltet: ${p.name}`)].filter(Boolean).join(' · ');
       $('saveStatus').textContent = reward.saved ? 'Fortschritt lokal gespeichert.' : careerStore.warning;
@@ -271,6 +277,14 @@
         audio = new (window.AudioContext || window.webkitAudioContext)(); engine = audio.createOscillator(); engineGain = audio.createGain();
         engine.type = 'sawtooth'; engine.frequency.value = 38; engineGain.gain.value = 0;
         const filter = audio.createBiquadFilter(); filter.frequency.value = 160; engine.connect(filter); filter.connect(engineGain); engineGain.connect(audio.destination); engine.start();
+        // Track clatter: looping noise through a band-pass, pulsed by an oscillator whose rate follows the speed.
+        const noise = audio.createBuffer(1, audio.sampleRate, audio.sampleRate), data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const source = audio.createBufferSource(); source.buffer = noise; source.loop = true;
+        const band = audio.createBiquadFilter(); band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = 1.4;
+        trackGain = audio.createGain(); trackGain.gain.value = 0; trackPulse = audio.createOscillator(); trackPulse.type = 'square'; trackPulse.frequency.value = 4;
+        const pulseDepth = audio.createGain(); pulseDepth.gain.value = .5; trackPulse.connect(pulseDepth); pulseDepth.connect(trackGain.gain);
+        source.connect(band); band.connect(trackGain); trackGain.connect(audio.destination); source.start(); trackPulse.start();
       }
       audio.resume().catch(() => {});
     } catch (_) { /* Sound is optional. */ }
@@ -284,6 +298,20 @@
     oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
   }
   function notify(message, seconds = 3) { $('notice').textContent = message; noticeTime = seconds; }
+  // Bright, fast, short-lived sparks at the impact point; ricochets spray along the deflected path.
+  function sparks(position, count, along = null) {
+    for (let i = 0; i < count && particles.length < 150; i++) {
+      const mesh = new T.Mesh(particleGeometry, puffMaterials[4]); mesh.position.copy(position); mesh.scale.setScalar(.05 + random() * .06); scene.add(mesh);
+      const velocity = new T.Vector3((random() - .5) * 14, 2 + random() * 8, (random() - .5) * 14);
+      if (along) velocity.addScaledVector(along, 18);
+      particles.push({ mesh, life: .18 + random() * .25, max: .4, velocity, kind: 4 });
+    }
+  }
+  let markerTimer;
+  function hitMarker(kind, text) {
+    const marker = $('hitMarker'); marker.className = `hit-marker ${kind}`; marker.dataset.text = text; marker.hidden = false;
+    clearTimeout(markerTimer); markerTimer = setTimeout(() => { marker.hidden = true; }, kind === 'kill' ? 1100 : 650);
+  }
   function puff(position, count, kind = 0) {
     for (let i = 0; i < count && particles.length < 130; i++) {
       const mesh = new T.Mesh(particleGeometry, puffMaterials[kind]); mesh.position.copy(position); mesh.scale.setScalar(.08 + random() * .2); scene.add(mesh);
@@ -327,8 +355,9 @@
   function reset() {
     loadMap(selectedMap); refreshMapUi(); captureZone.position.set(level.capture.x, 0, level.capture.z);
     roundId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    tank.root.position.set(level.playerStart[0], 0, level.playerStart[1]); hullYaw = turretYaw = viewYaw = 0; pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
-    match = new IronBattle.Match(); stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0 }; damageTime = 0; guards.blue = guards.red = null;
+    const [startX, startZ] = gameType === 'training' ? level.trainingStart : level.playerStart; tank.root.position.set(startX, 0, startZ); hullYaw = turretYaw = viewYaw = 0; pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
+    match = new IronBattle.Match(); stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0 }; damageTime = 0; guards.blue = guards.red = null; events.length = killLog.length = 0; previousOwner = null;
+    matchDifficulty = IronBattle.difficulties[difficulty];
     Object.assign(player, { hp: 100, alive: true, respawn: 0, shield: 3, yaw: 0, systems: Systems.fresh(), lastHit: null }); tank.root.visible = true; steerInput = 0;
     applyProfile(player, selectedVehicle); refreshVehicleUi(); clearSmoke();
     for (const target of targets) {
@@ -341,7 +370,7 @@
       target.turretYaw = target.yaw; target.root.rotation.y = target.yaw; target.turret.rotation.y = 0; target.gun.rotation.x = 0;
     }
     captureZone.visible = gameType === 'battle'; $('matchHud').hidden = gameType !== 'battle'; $('captureTrack').hidden = gameType !== 'battle'; $('healthTrack').hidden = gameType !== 'battle';
-    $('modeLabel').textContent = gameType === 'battle' ? 'VORHERRSCHAFT · 3 GEGEN 3' : 'SCHIESSÜBUNG';
+    $('modeLabel').textContent = gameType === 'battle' ? `VORHERRSCHAFT · GEGNER: ${matchDifficulty.name.toUpperCase()}` : 'SCHIESSÜBUNG';
     $('objectiveTitle').textContent = gameType === 'battle' ? 'Erobere Punkt A' : 'Erfasse die Übungsziele';
     $('result').hidden = $('respawn').hidden = $('damageFlash').hidden = true;
     for (const shell of shells) scene.remove(shell.mesh); shells.length = 0;
@@ -394,7 +423,7 @@
     clearTimeout(lockTimer); lockAttempt++; edgeX = edgeY = 0;
     mode = 'paused'; keys.clear(); releaseTouch(); zoom = false; $('pause').hidden = false;
     document.body.classList.remove('pointer-locked', 'aim-active');
-    if (engineGain && audio) engineGain.gain.setTargetAtTime(0, audio.currentTime, .02);
+    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
     if (document.pointerLockElement) document.exitPointerLock();
   }
   start.onclick = () => { gameType = 'battle'; reset(); play(); notify('Erobere Punkt A · Blau ist dein Team', 6); showTutorial(false); };
@@ -407,7 +436,7 @@
   function garage() {
     mode = 'menu'; clearTimeout(lockTimer); lockAttempt++; keys.clear(); releaseTouch(); edgeX = edgeY = 0; tutorialTime = 0; $('tutorial').hidden = true;
     if (document.pointerLockElement) document.exitPointerLock();
-    if (engineGain && audio) engineGain.gain.setTargetAtTime(0, audio.currentTime, .02);
+    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
     reset(); $('result').hidden = $('hud').hidden = $('pause').hidden = $('pauseButton').hidden = true; $('menu').hidden = false;
     document.body.classList.remove('playing', 'pointer-locked', 'aim-active'); targets.forEach(t => { t.label.hidden = true; });
   }
@@ -441,7 +470,7 @@
   document.addEventListener('mousemove', event => {
     if (mode !== 'playing' || (document.pointerLockElement !== $('world') && (!fallbackInput || event.target !== $('world')))) return;
     const rate = .0022 * sensitivity * (zoom ? .45 : 1);
-    viewYaw -= event.movementX * rate; pitch = Math.max(-.48, Math.min(.16, pitch - event.movementY * rate));
+    viewYaw -= event.movementX * rate; pitch = Math.max(-.48, Math.min(.16, pitch - event.movementY * rate * (invertY ? -1 : 1)));
     if (fallbackInput) {
       const edge = (value, size) => value < 55 ? -(55 - value) / 55 : value > size - 55 ? (value - size + 55) / 55 : 0;
       edgeX = edge(event.clientX, innerWidth); edgeY = edge(event.clientY, innerHeight);
@@ -521,7 +550,7 @@
     if (state.role === 'stick') moveStick(state, event.clientX, event.clientY);
     else if (state.role === 'look' || state.role === 'fire') {
       const rate = .0048 * sensitivity * (zoom ? .45 : 1);
-      viewYaw -= (event.clientX - state.x) * rate; pitch = Math.max(-.48, Math.min(.16, pitch - (event.clientY - state.y) * rate * .8));
+      viewYaw -= (event.clientX - state.x) * rate; pitch = Math.max(-.48, Math.min(.16, pitch - (event.clientY - state.y) * rate * .8 * (invertY ? -1 : 1)));
     }
     state.x = event.clientX; state.y = event.clientY;
   });
@@ -584,6 +613,7 @@
     if (gameType === 'training' && targetId !== undefined) {
       const target = targets[targetId];
       if (!target.hits) { hitCount++; target.ring.material.color.set('#a5c596'); }
+      sparks(hit.point, 10); hitMarker(target.hits ? 'hit' : 'module', 'TREFFER');
       target.hits++;
       $('score').textContent = `${hitCount} / 5 ZIELE GETROFFEN`;
       notify(hitCount === 5 ? 'ÜBUNG ABGESCHLOSSEN · 5 / 5\nErkunde weiter oder starte im Pausenmenü neu.' : `TREFFER · ZIEL ${targetId + 1}\n${hitCount} von 5 Zielen erfasst`, hitCount === 5 ? 8 : 2.5);
@@ -595,7 +625,8 @@
       // Angle between the shell path and the struck plate decides between ricochet and penetration.
       const normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : path.clone().negate();
       if (Systems.ricochet(Math.abs(normal.dot(path)))) {
-        tone(1400, .22, .07, 500);
+        tone(1400, .22, .07, 500); sparks(hit.point, 7, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
+        if (attacker === player) hitMarker('ricochet', 'ABPRALLER');
         if (attacker === player) { stats.ricochets++; notify('ABPRALLER · ZU FLACHER WINKEL\nZiele möglichst senkrecht auf die Panzerung.', 2); }
         if (victim === player) notify('ABPRALLER AN DEINER PANZERUNG', 1.6);
         return;
@@ -606,21 +637,28 @@
       const damage = Systems.damage(incidence, attacker.profile, victim.profile, moduleHit);
       const where = { front: 'FRONT', side: 'SEITE', rear: 'HECK' }[facing];
       const moduleText = { tracks: 'KETTE BESCHÄDIGT', engine: 'MOTOR BESCHÄDIGT', turret: 'TURMANTRIEB BESCHÄDIGT' }[moduleHit];
-      victim.hp = Math.max(0, victim.hp - damage);
+      victim.hp = Math.max(0, victim.hp - damage); sparks(hit.point, 10);
+      if (attacker === player && victim.hp > 0) hitMarker(moduleHit ? 'module' : 'hit', moduleText || `−${damage}`);
       if (attacker === player) { stats.hits++; notify(`DURCHSCHLAG · ${where} · −${damage}${moduleText ? `\n${moduleText}` : ''}`, 2); }
       if (victim === player) {
         damageTime = .45; tone(60, .3, .35, 22); player.lastHit = { by: attacker, where };
         if (moduleHit) notify({ tracks: 'KETTE AUSGEFALLEN · STILLSTEHEN & REPARIEREN\nRauch gibt dir Deckung.', engine: 'MOTOR BESCHÄDIGT · LEISTUNG REDUZIERT\nStillstehen und reparieren.', turret: 'TURMANTRIEB BESCHÄDIGT · TURM DREHT LANGSAM\nStillstehen und reparieren.' }[moduleHit], 4);
-      } else {
+      }
+      if (victim !== player || autopilot) {
         victim.threat = 5;
         // Hurt bots sometimes cover their retreat with smoke.
-        if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && random() < .5) deploySmoke(victim);
+        if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && matchDifficulty.smoke && random() < .5) deploySmoke(victim);
       }
       if (victim.hp === 0) {
         victim.alive = false; victim.respawn = 6; victim.root.visible = false;
-        puff(victim.root.position.clone().setY(1.8), 30, 1); match.lose(victim.team);
-        if (victim === player) { stats.deaths++; velocity = 0; zoom = false; }
+        puff(victim.root.position.clone().setY(1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
+        if (victim === player) { stats.deaths++; velocity = 0; zoom = false; events.push({ type: 'death', where }); }
         else { victim.label.hidden = true; victim.ring.visible = false; }
+        if (attacker === player) {
+          hitMarker('kill', 'AUSGESCHALTET');
+          const nearPoint = Math.hypot(victim.root.position.x - level.capture.x, victim.root.position.z - level.capture.z) < level.capture.radius + 8;
+          events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && (match.owner !== 'red' || match.contested) });
+        }
         if (attacker === player) { stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\nGegner verliert 5 Tickets.`, 3); }
       }
     }
@@ -636,13 +674,13 @@
     if (!place) { vehicle.respawn = .5; return; }
     vehicle.root.position.set(place[0], 0, place[1]); vehicle.root.visible = true;
     Object.assign(vehicle, { alive: true, hp: 100, shield: 3, respawn: 0, enemy: null, reload: 1, navigationTimer: 0, thinkTimer: 0, path: [], reaction: 1, systems: Systems.fresh() });
-    if (vehicle === player) { velocity = reload = 0; hullYaw = turretYaw = viewYaw = 0; pitch = -.16; player.lastHit = null; notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3); }
+    if (vehicle === player) { velocity = reload = 0; hullYaw = turretYaw = viewYaw = 0; pitch = -.16; player.lastHit = null; notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3); if (autopilot) Object.assign(player, freshTactics(player), { yaw: 0, turretYaw: 0 }); }
     else { Object.assign(vehicle, freshTactics(vehicle)); vehicle.yaw = vehicle.turretYaw = vehicle.team === 'blue' ? 0 : Math.PI; vehicle.root.rotation.y = vehicle.yaw; vehicle.turret.rotation.y = 0; }
   }
   // Per-life tactical state: fast tanks sometimes take a wide flank before joining the fight.
   function freshTactics(bot) {
     const flanks = level.flanks[bot.team];
-    return { flank: bot.profile.id === 'luchs' && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
+    return { flank: matchDifficulty.flank && bot.profile.id === 'luchs' && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
   }
   function canSee(from, to) {
     if (!from.alive || !to.alive || from.root.position.distanceTo(to.root.position) > 115) return false;
@@ -656,7 +694,8 @@
   const inZone = vehicle => vehicle.alive && Math.hypot(vehicle.root.position.x - level.capture.x, vehicle.root.position.z - level.capture.z) < level.capture.radius;
   // One bot per team stays on a secured point; the others take overwatch positions.
   function isGuard(bot) {
-    if (bot.team === 'blue' && inZone(player)) return false;
+    if (bot === player) return false;
+    if (bot.team === 'blue' && inZone(player) && !autopilot) return false;
     let guard = guards[bot.team];
     if (!guard?.alive) {
       guard = targets.filter(t => t.team === bot.team && t.alive).sort((a, b) => Math.hypot(a.root.position.x - level.capture.x, a.root.position.z - level.capture.z) - Math.hypot(b.root.position.x - level.capture.x, b.root.position.z - level.capture.z))[0] || null;
@@ -670,13 +709,13 @@
     Systems.repair(bot.systems, dt, repairing, false);
     if (bot.flank && Math.hypot(bot.root.position.x - bot.flank[0], bot.root.position.z - bot.flank[1]) < 10) bot.flank = null;
     const holds = level.holds[bot.team];
-    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened: bot.threat > 0, guard: isGuard(bot), owner: match.owner, contested: match.contested, progress: match.progress, capture: level.capture, slot: level.goals[bot.id], hold: holds[bot.holdIndex % holds.length], flank: bot.flank });
+    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened: bot.threat > 0 || (matchDifficulty.coverReload && bot.hp < 60 && bot.reload > 1.5 && !!bot.enemy), guard: isGuard(bot), owner: match.owner, contested: match.contested, progress: match.progress, capture: level.capture, slot: bot === player ? [level.capture.x, level.capture.z + 5] : level.goals[bot.id], hold: holds[bot.holdIndex % holds.length], flank: bot.flank });
     const goal = { x: objective.point[0], z: objective.point[1] };
     if (bot.goalPoint !== objective.point) { bot.goalPoint = objective.point; bot.goalKind = objective.kind; bot.navigationTimer = 0; }
     if (bot.navigationTimer <= 0) {
       const clearance = (x, z) => staticBlocked(x, z, 3.2);
       bot.path = IronBattle.smoothPath(bot.root.position, IronBattle.findPath(bot.root.position, goal, staticBlocked), clearance);
-      bot.navigationTimer = 2.5 + bot.id * .2;
+      bot.navigationTimer = 2.5 + (bot === player ? 1 : bot.id) * .2;
     }
     const nearGoal = Math.hypot(bot.root.position.x - goal.x, bot.root.position.z - goal.z) < 3;
     while (bot.path.length && Math.hypot(bot.path[0].x - bot.root.position.x, bot.path[0].z - bot.root.position.z) < 1.8) bot.path.shift();
@@ -688,7 +727,11 @@
       const delta = shortest(desired - bot.yaw); bot.yaw += Math.max(-dt * bot.profile.turn, Math.min(dt * bot.profile.turn, delta));
       const pace = (Math.abs(delta) < .4 ? Math.min(7.5, bot.profile.speed * .7) : 2.5) * Systems.mobility(bot.systems);
       const nx = bot.root.position.x - Math.sin(bot.yaw) * pace * dt, nz = bot.root.position.z - Math.cos(bot.yaw) * pace * dt;
-      if (!blocked(nx, nz, bot)) { bot.root.position.set(nx, 0, nz); bot.stuck = 0; bot.speedNow = pace; for (const wheel of bot.wheels) wheel.rotation.x += pace * dt; }
+      if (!blocked(nx, nz, bot)) {
+        bot.root.position.set(nx, 0, nz); bot.stuck = 0; bot.speedNow = pace; for (const wheel of bot.wheels) wheel.rotation.x += pace * dt;
+        bot.dust = (bot.dust || 0) + dt;
+        if (pace > 5 && bot.dust > .22 && particles.length < 110) { bot.dust = 0; temp.set(nx + Math.sin(bot.yaw) * 2.4, .3, nz + Math.cos(bot.yaw) * 2.4); puff(temp, 1, 2); }
+      }
       else {
         bot.stuck += dt;
         // Back off and re-route around a stopped vehicle instead of pushing forever.
@@ -712,7 +755,8 @@
     if (bot.thinkTimer <= 0) {
       const previousEnemy = bot.enemy;
       bot.enemy = [player, ...targets].filter(v => v.team !== bot.team && v.alive).sort((a, b) => bot.root.position.distanceToSquared(a.root.position) - bot.root.position.distanceToSquared(b.root.position)).find(v => canSee(bot, v)) || null;
-      if (bot.enemy !== previousEnemy) bot.reaction = .8 + random() * .5;
+      const [fastest, slowest] = matchDifficulty.reaction;
+      if (bot.enemy !== previousEnemy) bot.reaction = fastest + random() * (slowest - fastest);
       if (bot.enemy) bot.lastSeen = { x: bot.enemy.root.position.x, z: bot.enemy.root.position.z, time: 3 };
       bot.visibleToPlayer = canSee(player, bot); bot.thinkTimer = .3 + random() * .15;
     }
@@ -724,13 +768,16 @@
     if (look) {
       const dx = look.x - bot.root.position.x, dz = look.z - bot.root.position.z, distance = Math.hypot(dx, dz);
       if (distance > 4) desiredYaw = Math.atan2(-dx, -dz);
-      bot.gun.rotation.x = Math.atan2(-.6 + 1.5 * (distance / 95) ** 2, Math.max(distance, 1));
+      // Ace bots aim low at tracks and hull sides when the target is not facing them.
+      let drop = -.6;
+      if (matchDifficulty.lowAim && bot.enemy?.alive) { const facing = Math.abs(Math.cos(bot.enemy.yaw - Math.atan2(-dx, -dz))); if (facing < .55) drop = -1; }
+      bot.gun.rotation.x = Math.atan2(drop + 1.5 * (distance / 95) ** 2, Math.max(distance, 1));
     }
     const turretRate = bot.profile.turret * Systems.turretRate(bot.systems);
     bot.turretYaw += Math.max(-dt * turretRate, Math.min(dt * turretRate, shortest(desiredYaw - bot.turretYaw)));
     bot.turret.rotation.y = bot.turretYaw - bot.yaw;
     if (!repairing && bot.enemy?.alive && bot.reload <= 0 && bot.reaction <= 0 && Math.abs(shortest(desiredYaw - bot.turretYaw)) < .05 && canSee(bot, bot.enemy)) {
-      bot.root.updateMatrixWorld(true); launchShell(bot, .011 + Systems.spread(bot.profile, bot.speedNow / bot.profile.speed));
+      bot.root.updateMatrixWorld(true); launchShell(bot, matchDifficulty.error + Systems.spread(bot.profile, bot.speedNow / bot.profile.speed));
       bot.reload = bot.profile.reload + 1 + random();
       if (bot.root.position.distanceTo(tank.root.position) < 65) tone(90, .2, .07, 30);
     }
@@ -740,22 +787,28 @@
       vehicle.shield = Math.max(0, vehicle.shield - dt);
       if (!vehicle.alive) { vehicle.respawn -= dt; if (vehicle.respawn <= 0) respawnVehicle(vehicle); }
       else if (vehicle !== player) updateBot(vehicle, dt);
+      else if (autopilot) { updateBot(player, dt); hullYaw = player.yaw; turretYaw = player.turretYaw; }
     }
     const inside = [player, ...targets].filter(v => v.alive && Math.hypot(v.root.position.x - level.capture.x, v.root.position.z - level.capture.z) < level.capture.radius);
     if (inside.includes(player)) stats.captureSeconds += dt;
     match.update(dt, inside.filter(v => v.team === 'blue').length, inside.filter(v => v.team === 'red').length);
+    if (match.owner === 'blue' && previousOwner !== 'blue' && inside.length === 1 && inside[0] === player) events.push({ type: 'capture' });
+    previousOwner = match.owner;
     const color = match.contested ? '#efb36c' : match.owner === 'blue' ? '#79b9d7' : match.owner === 'red' ? '#da8365' : '#dfc18c';
     captureRing.material.color.set(color); captureFlag.material.color.set(color).convertSRGBToLinear();
     if (match.result) finishMatch();
   }
   function finishMatch() {
     if (mode === 'result') return;
+    if (autopilot) { mode = 'result'; return; }
     mode = 'result'; keys.clear(); zoom = false; velocity = 0; document.body.classList.remove('pointer-locked', 'aim-active');
     if (document.pointerLockElement) document.exitPointerLock();
-    if (engineGain && audio) engineGain.gain.setTargetAtTime(0, audio.currentTime, .02);
+    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
     $('resultTitle').textContent = match.result === 'blue' ? `${level.name} gesichert.` : match.result === 'red' ? 'Gefecht verloren.' : 'Unentschieden.';
     $('resultReason').textContent = `${match.time <= 0 ? 'Zeit abgelaufen.' : 'Ein Team hat keine Tickets mehr.'} Blau ${match.tickets.blue} : ${match.tickets.red} Rot.`;
     $('resultStats').innerHTML = `<span>ABSCHÜSSE<b>${stats.kills}</b></span><span>WIRKSAME TREFFER<b>${stats.hits}</b></span><span>EIGENE VERLUSTE<b>${stats.deaths}</b></span><span>SEKUNDEN AM ZIEL<b>${Math.floor(stats.captureSeconds)}</b></span>`;
+    const { moment, tip } = IronBattle.keyMoment(events, stats, match.result);
+    $('keyMoment').textContent = moment || 'Kein Abschuss in diesem Gefecht.'; $('keyTip').textContent = tip || ''; $('keyTip').hidden = !tip;
     $('result').hidden = false; $('respawn').hidden = true; targets.forEach(t => { t.label.hidden = true; });
     recordRound();
   }
@@ -769,7 +822,7 @@
     let throttle = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
     let steer = (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) - (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0);
     if (!throttle && !steer) { throttle = touch.throttle; steer = touch.steer; }
-    if (!player.alive) throttle = steer = 0;
+    if (!player.alive || autopilot) throttle = steer = 0;
     const braking = keys.has('Space') || touch.brake, repairHeld = keys.has('KeyR') || touch.repair;
     const mobility = Systems.mobility(player.systems), profile = player.profile;
     if (mobility === 0) velocity = 0;
@@ -780,13 +833,15 @@
     } else velocity *= Math.exp(-1.15 * dt);
     velocity = Math.max(-profile.reverse * mobility, Math.min(profile.speed * mobility, velocity));
     if (Math.abs(velocity) < .025) velocity = 0;
-    steerInput = steer;
+    steerInput = steer; throttleLoad += ((throttle && Math.abs(velocity) < Math.abs(throttle) * profile.speed * mobility * .9 ? 1 : 0) - throttleLoad) * Math.min(1, dt * 4);
     hullYaw += steer * profile.turn * mobility * dt * (velocity < -.3 ? -1 : 1) * (1 - Math.abs(velocity) / 30);
-    if (Systems.repair(player.systems, dt, repairHeld, !!throttle || !!steer || Math.abs(velocity) > .2, player.alive)) notify('REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
+    if (!autopilot && Systems.repair(player.systems, dt, repairHeld, !!throttle || !!steer || Math.abs(velocity) > .2, player.alive)) notify('REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
     const nx = tank.root.position.x - Math.sin(hullYaw) * velocity * dt, nz = tank.root.position.z - Math.cos(hullYaw) * velocity * dt;
-    if (!blocked(nx, nz)) { tank.root.position.x = nx; tank.root.position.z = nz; obstacleContact = false; }
+    if (autopilot) velocity = 0;
+    else if (!blocked(nx, nz)) { tank.root.position.x = nx; tank.root.position.z = nz; obstacleContact = false; }
     else { velocity = 0; obstacleContact = true; }
-    aim(dt); reload = Math.max(0, reload - dt); recoil *= Math.exp(-7 * dt); updateTank();
+    if (!autopilot) aim(dt);
+    reload = Math.max(0, reload - dt); recoil *= Math.exp(-7 * dt); updateTank();
     player.yaw = hullYaw;
     for (const wheel of tank.wheels) wheel.rotation.x += velocity * dt * 1.5;
     dustTime += dt;
@@ -890,14 +945,21 @@
         if (visible) { bot.label.style.left = `${(temp.x * .5 + .5) * innerWidth}px`; bot.label.style.top = `${(-temp.y * .5 + .5) * innerHeight}px`; bot.label.innerHTML = `${bot.team === 'blue' ? '◆' : '◇'} ${bot.callsign} · ${bot.profile.name}<i style="width:${bot.hp * .55}px"></i>`; }
       }
     }
-    if (engineGain && audio) { engine.frequency.setTargetAtTime(35 + Math.abs(velocity) * 5, audio.currentTime, .15); engineGain.gain.setTargetAtTime(soundEnabled && mode === 'playing' ? .035 + Math.abs(velocity) * .002 : 0, audio.currentTime, .1); }
+    if (engineGain && audio) {
+      const on = soundEnabled && mode === 'playing' && player.alive, speed = Math.abs(velocity);
+      engine.frequency.setTargetAtTime(35 + speed * 5 + throttleLoad * 14, audio.currentTime, .15);
+      engineGain.gain.setTargetAtTime(on ? .035 + speed * .002 + throttleLoad * .02 : 0, audio.currentTime, .1);
+      trackPulse.frequency.setTargetAtTime(2 + speed * 1.6, audio.currentTime, .1);
+      trackGain.gain.setTargetAtTime(on && speed > .3 ? Math.min(.05, .012 + speed * .0028) : 0, audio.currentTime, .1);
+    }
   }
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   window.addEventListener('resize', resize);
   $('world').addEventListener('webglcontextlost', event => { event.preventDefault(); pause(); $('pause').hidden = true; $('menu').hidden = false; $('hud').hidden = true; fail('Die Grafikverbindung wurde unterbrochen. Bitte lade die Seite neu.'); });
-  let previous = performance.now(), accumulator = 0, hudTime = 0;
+  let previous = performance.now(), accumulator = 0, hudTime = 0, fpsFrames = 0, fpsTime = 0;
   function frame(now) {
-    requestAnimationFrame(frame); const dt = Math.min((now - previous) / 1000, .08); previous = now; elapsed += dt;
+    requestAnimationFrame(frame); const raw = (now - previous) / 1000, dt = Math.min(raw, .08); previous = now; elapsed += dt;
+    if (showFps) { fpsFrames++; fpsTime += raw; if (fpsTime >= .5) { $('fps').textContent = `${Math.round(fpsFrames / fpsTime)} FPS · ${quality === 'high' ? 'HOCH' : quality === 'medium' ? 'MITTEL' : 'NIEDRIG'}`; fpsFrames = fpsTime = 0; } }
     if (mode === 'playing') { accumulator += dt; while (accumulator >= 1 / 60 && mode === 'playing') { step(1 / 60); accumulator -= 1 / 60; } updateCamera(dt); hudTime += dt; if (hudTime > .06) { updateHud(); hudTime = 0; } }
     else { accumulator = 0; if (mode === 'menu') updateCamera(dt); }
     renderer.render(scene, camera);
@@ -906,8 +968,25 @@
   start.disabled = $('trainingButton').disabled = false; start.firstChild.textContent = 'GEFECHT STARTEN ';
   // Debug/test helper: advances the fixed simulation step without depending on requestAnimationFrame.
   function sim(seconds) { for (let i = 0; i < Math.round(seconds * 60) && mode === 'playing'; i++) step(1 / 60); updateCamera(1, true); updateHud(); return window.ironHorizon.getState(); }
-  window.ironHorizon = Object.freeze({ sim, getState: () => ({
-    mode, gameType, touchMode, quality, map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
+  // Balance tournament: all six tanks are bots (the player's tank on autopilot); no rendering, no career booking.
+  // vehicles = [player, blue bot 1, blue bot 2, red bot 1, red bot 2, red bot 3].
+  function balance({ vehicles = ['luchs', 'luchs', 'keiler', 'luchs', 'luchs', 'keiler'], map = 'border', level: botLevel = 'veteran', seed: runSeed = 1 } = {}) {
+    if (mode !== 'menu') return null;
+    const saved = { selectedMap, selectedVehicle, difficulty, gameType };
+    seed = runSeed >>> 0 || 1; selectedMap = map; difficulty = botLevel; gameType = 'battle'; selectedVehicle = vehicles[0];
+    targets.forEach((target, i) => applyProfile(target, vehicles[i + 1]));
+    autopilot = true; reset();
+    Object.assign(player, freshTactics(player), { number: 3, holdIndex: 2, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1, turretYaw: 0 });
+    mode = 'playing';
+    for (let i = 0; i < 421 * 60 && mode === 'playing'; i++) step(1 / 60);
+    const out = { result: match.result, tickets: { ...match.tickets }, seconds: Math.round(420 - match.time), kills: killLog.map(k => [...k]) };
+    autopilot = false; ({ selectedMap, selectedVehicle, difficulty, gameType } = saved);
+    targets.forEach((target, i) => applyProfile(target, i === 1 || i === 3 ? 'keiler' : 'luchs'));
+    mode = 'menu'; garage();
+    return out;
+  }
+  window.ironHorizon = Object.freeze({ sim, balance, getState: () => ({
+    mode, gameType, touchMode, quality, difficulty: matchDifficulty.id, invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
     position: { x: tank.root.position.x, z: tank.root.position.z }, speed: velocity, hullYaw, turretYaw, viewYaw, reload, hitCount,
     hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length,
     career: { xp: careerStore.state.xp, matches: careerStore.state.matches, rank: Career.rank(careerStore.state.xp).current.name, paint: careerStore.state.paints[player.profile.id], warning: careerStore.warning },

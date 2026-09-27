@@ -95,7 +95,36 @@
     if (ctx.flank && toZone > ctx.capture.radius + 25) return { kind: 'flank', point: ctx.flank };
     return { kind: 'capture', point: ctx.slot };
   }
-  const api = { Match, findPath, smoothPath, clearLine, botObjective };
+  // Bot difficulty: reaction time range (s), extra aim error (rad) and which tactics are allowed.
+  const difficulties = Object.freeze({
+    recruit: Object.freeze({ id: 'recruit', name: 'Rekrut', reaction: [1.2, 1.8], error: .018, flank: false, smoke: false, lowAim: false, coverReload: false, xp: 1 }),
+    veteran: Object.freeze({ id: 'veteran', name: 'Veteran', reaction: [.8, 1.3], error: .011, flank: true, smoke: true, lowAim: false, coverReload: false, xp: 1 }),
+    ace: Object.freeze({ id: 'ace', name: 'Ass', reaction: [.5, .8], error: .006, flank: true, smoke: true, lowAim: true, coverReload: true, xp: 1.25 })
+  });
+  const sideText = { FRONT: 'in die Front', SEITE: 'in die Seite', HECK: 'ins Heck' };
+  // Picks the one moment of the round worth retelling, plus one concrete tip.
+  // events: player kills { type: 'kill', victim, vehicle, where, distance, zone }, solo captures { type: 'capture' },
+  // deaths { type: 'death', where }. zone = the kill relieved pressure on point A.
+  function keyMoment(events, stats, result) {
+    let best = null, bestScore = 0;
+    for (const event of events) {
+      let score = 0;
+      if (event.type === 'kill') score = 1 + (event.zone ? 2.5 : 0) + (event.distance >= 70 ? 1 : 0) + (event.where !== 'FRONT' ? .5 : 0);
+      else if (event.type === 'capture') score = 3;
+      if (score > bestScore) { best = event; bestScore = score; }
+    }
+    let moment = null;
+    if (best?.type === 'capture') moment = 'Du hast Punkt A allein erobert.';
+    else if (best) moment = `Dein Treffer ${sideText[best.where] || ''} von ${best.victim} (${best.vehicle}) aus ${Math.round(best.distance)} m ${best.zone ? 'hat Punkt A entlastet.' : 'war dein bester Schuss.'}`.replace('  ', ' ');
+    const flanked = events.filter(e => e.type === 'death' && e.where !== 'FRONT').length;
+    let tip = null;
+    if ((stats.ricochets || 0) >= 3) tip = `${stats.ricochets} Abpraller: Ziele möglichst senkrecht auf die Panzerung.`;
+    else if (flanked >= 2) tip = `Du wurdest ${flanked}× von der Seite oder von hinten ausgeschaltet. Behalte deine Flanken im Blick.`;
+    else if (result === 'red' && (stats.captureSeconds || 0) < 15) tip = 'Punkt A entscheidet: Solange der Gegner ihn hält, verliert dein Team laufend Tickets.';
+    else if (!(stats.kills || 0) && (stats.hits || 0) >= 3) tip = 'Viele Treffer, kein Abschuss: Seite und Heck nehmen deutlich mehr Schaden als die Front.';
+    return { moment, tip };
+  }
+  const api = { Match, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else scope.IronBattle = api;
 })(typeof window !== 'undefined' ? window : globalThis);

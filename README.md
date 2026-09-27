@@ -1,6 +1,6 @@
 # Iron Horizon
 
-3D-Panzerkampfspiel im Browser – Prototyp **0.6**. Zwei Karten, zwei Fahrzeuge, 3-gegen-3-Gefechte gegen Bots, Training und ein dauerhaftes Fahrerprofil. Spielbar mit Maus und Tastatur oder per Touch auf Handy und Tablet. Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
+3D-Panzerkampfspiel im Browser – Prototyp **0.7**. Zwei Karten, zwei Fahrzeuge, 3-gegen-3-Gefechte gegen Bots, Training und ein dauerhaftes Fahrerprofil. Spielbar mit Maus und Tastatur oder per Touch auf Handy und Tablet. Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
 
 Teil der privaten Swimming-Lions-Spielesammlung für Familie und Freunde.
 
@@ -26,11 +26,12 @@ Für die Browser-Tests gibt es zusätzlich `node iron-horizon/serve.cjs`: dersel
 - Grenzposten und Steinbruch mit Kartenauswahl in der Garage.
 - Luchs und Keiler mit unterschiedlichen Kampf- und Fahrwerten.
 - Eroberungspunkt, Tickets, Wiedereinstieg und Ergebnisanzeige.
-- Bots mit Rollen: Punkt erobern, Flanken fahren, gesicherten Punkt aus Deckung überwachen, verletzt zurückziehen und nebeln.
+- Bots mit Rollen: Punkt erobern, Flanken fahren, gesicherten Punkt aus Deckung überwachen, verletzt zurückziehen und nebeln. Drei Gegnerstärken: Rekrut, Veteran, Ass (+25 % Erfahrung).
 - Abpraller bei flachen Treffern, Kette, Motor und Turmantrieb als beschädigbare Module, Schadensschema im HUD.
 - Streuung: Im Stand schießt man genauer als in voller Fahrt.
 - Erfahrung, Ränge, Tarnungen sowie JSON-Import und -Export des Spielstands.
-- Grafikstufen Hoch/Mittel/Niedrig für schwächere Geräte.
+- Treffermarker und Funken, Kettenklappern, Schlüsselmoment mit Tipp im Ergebnis.
+- Grafikstufen Hoch/Mittel/Niedrig, Y-Achse umkehren, Bildratenanzeige.
 
 Ausführliche Regeln und Tests: [Spiel-Dokumentation](iron-horizon/README.md). Die Planung bis zur Version 1.0 steht im [Spielkonzept](IRON-HORIZON-KONZEPT.md).
 
@@ -46,7 +47,7 @@ Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, 
 npm test
 ```
 
-Die zusätzlichen Browser-Tests (`*-test.cjs`) benötigen Playwright, installiertes Chrome und den laufenden Server von `serve.cjs`.
+Die zusätzlichen Browser-Tests (`*-test.cjs`) benötigen Playwright, installiertes Chrome und den laufenden Server von `serve.cjs`. Das Balance-Turnier (`node iron-horizon/balance-tournament.cjs --rounds 40`) lässt 320 Bot-Gefechte laufen und prüft die Balance-Regel aus dem Konzept.
 
 ## Drittanbieter
 

@@ -18,7 +18,7 @@ const path = require('node:path');
     assert.equal(dead.alive, false); assert.equal(dead.hp, 0);
     await page.waitForFunction(() => window.ironHorizon.getState().alive, null, { timeout: 15000 });
     const respawned = await page.evaluate(() => window.ironHorizon.getState());
-    assert.equal(respawned.hp, 100); assert.ok(respawned.position.z > 80); assert.equal(respawned.pointerLocked, true);
+    assert.equal(respawned.hp, 100); assert.ok(respawned.position.z >= 79, 'Respawn at the own base'); assert.equal(respawned.pointerLocked, true);
     assert.equal(respawned.systems.tracks, 100); assert.equal(respawned.systems.engine, 100); assert.equal(respawned.systems.smokeCharges, 2);
     console.log('Player destroyed and respawned:', respawned.stats);
     // Shorten only the test browser's match clock to exercise terminal UI without a seven-minute wait.

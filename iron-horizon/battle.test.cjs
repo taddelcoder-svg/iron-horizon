@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { Match, findPath, smoothPath, clearLine, botObjective } = require('./battle.js');
+const { Match, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment } = require('./battle.js');
 const advance = (match, seconds, blue = 0, red = 0) => { for (let i = 0; i < seconds * 60; i++) match.update(1 / 60, blue, red); };
 test('capture, persistent ownership, ticket drain and contested freeze', () => {
   const match = new Match(); advance(match, 11, 1, 0); assert.equal(match.owner, 'blue');
@@ -42,4 +42,24 @@ test('bot tactics: capture, flank first, hold once secured, retreat when hurt', 
   assert.equal(botObjective({ ...secured, contested: true }).kind, 'capture');
   assert.equal(botObjective({ ...base, hp: 20, threatened: true }).kind, 'retreat');
   assert.equal(botObjective({ ...secured, guard: true, hp: 20, threatened: true }).kind, 'capture', 'the last guard stays on a secured point');
+});
+test('difficulty levels get sharper from Rekrut to Ass', () => {
+  const { recruit, veteran, ace } = difficulties;
+  assert.ok(recruit.reaction[0] > veteran.reaction[0] && veteran.reaction[0] > ace.reaction[0]);
+  assert.ok(recruit.error > veteran.error && veteran.error > ace.error);
+  assert.equal(recruit.flank, false); assert.equal(recruit.smoke, false); assert.equal(ace.lowAim, true);
+});
+test('key moment prefers kills that relieved the point, then solo captures', () => {
+  const kill = { type: 'kill', victim: 'GEGNER 3', vehicle: 'KEILER', where: 'SEITE', distance: 42, zone: false };
+  const saved = { ...kill, victim: 'GEGNER 1', where: 'HECK', zone: true };
+  assert.match(keyMoment([kill, saved], {}, 'blue').moment, /ins Heck von GEGNER 1.*entlastet/);
+  assert.equal(keyMoment([kill, { type: 'capture' }], {}, 'blue').moment, 'Du hast Punkt A allein erobert.');
+  assert.match(keyMoment([kill], {}, 'blue').moment, /in die Seite von GEGNER 3 \(KEILER\) aus 42 m war dein bester Schuss/);
+  assert.equal(keyMoment([], {}, 'draw').moment, null);
+});
+test('the tip names the most useful lesson', () => {
+  assert.match(keyMoment([], { ricochets: 4 }, 'blue').tip, /4 Abpraller/);
+  assert.match(keyMoment([{ type: 'death', where: 'HECK' }, { type: 'death', where: 'SEITE' }], {}, 'red').tip, /2× von der Seite/);
+  assert.match(keyMoment([], { captureSeconds: 3 }, 'red').tip, /Punkt A entscheidet/);
+  assert.equal(keyMoment([], { captureSeconds: 80, kills: 2 }, 'blue').tip, null);
 });

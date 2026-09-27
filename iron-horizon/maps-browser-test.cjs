@@ -16,7 +16,7 @@ const path = require('node:path');
     assert.equal((await state()).map, 'border');
     await page.locator('#mapSelect').selectOption('quarry');
     await page.waitForFunction(() => window.ironHorizon.getState().map === 'quarry');
-    assert.deepEqual((await state()).position, { x: 24, z: 100 });
+    assert.deepEqual((await state()).position, { x: 24, z: 92 });
     assert.equal(await page.locator('#mapCaption').textContent(), 'STEINBRUCH / 02');
     await page.screenshot({ path: path.join(output, 'quarry-garage.png') });
     // Map changes release old geometry rather than accumulating terrain meshes.
@@ -71,7 +71,7 @@ const path = require('node:path');
     await page.locator('#trainingButton').click();
     await page.waitForFunction(() => window.ironHorizon.getState().mode === 'playing');
     assert.deepEqual((await state()).position, { x: 0, z: 65 });
-    assert.deepEqual((await state()).targets.map(t => [t.x, t.z]), [[0,3],[-25,21],[28,-29],[-52,-48],[62,43]]);
+    assert.deepEqual((await state()).targets.map(t => [t.x, t.z]), [[0,3],[-25,21],[24,-26],[-52,-48],[62,43]]);
     assert.equal((await state()).career.xp, 0, 'Map switching and abandonment award no XP');
     assert.deepEqual(errors, []);
     console.log('PASS: map selection, persistence, geometry disposal, laptop UI, training hit, pause/resume, bot routes, map reset. Screenshots:', output);

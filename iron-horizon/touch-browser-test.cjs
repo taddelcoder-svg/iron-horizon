@@ -30,7 +30,7 @@ const path = require('node:path');
     // Drive: thumb down on the left, push up.
     await touch('pointerdown', 1, 90, 300); await touch('pointermove', 1, 90, 240);
     await page.evaluate(() => window.ironHorizon.sim(2));
-    const driving = await state(); assert.ok(driving.speed > 5 && driving.position.z < 65, 'Stick drives forward');
+    const driving = await state(); assert.ok(driving.speed > 5 && driving.position.z < 78, 'Stick drives forward');
     await touch('pointermove', 1, 40, 240); const yaw = driving.hullYaw; await page.evaluate(() => window.ironHorizon.sim(.5));
     assert.ok((await state()).hullYaw > yaw, 'Stick left steers left');
     await touch('pointerup', 1, 40, 240);

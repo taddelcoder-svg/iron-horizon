@@ -1,4 +1,4 @@
-# Iron Horizon – Prototyp 0.6
+# Iron Horizon – Prototyp 0.7
 
 3D-Panzergefecht und Testgelände für die Swimming-Lions-Spielesammlung. Alle Laufzeitdateien einschließlich Three.js liegen im Repository; keine CDNs, Konten oder externen Dienste nötig.
 
@@ -20,6 +20,8 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
 - Zehn Sekunden erobern, gegnerischen Punkt zuvor fünf Sekunden neutralisieren. Beide Teams im Punkt unterbrechen Eroberung und Ticketabzug.
 - Besitz bleibt beim Verlassen erhalten. Ein gehaltener Punkt kostet den Gegner alle zwei Sekunden ein Ticket, ein Fahrzeugverlust fünf Tickets.
 - Wiedereinstieg nach sechs Sekunden mit drei Sekunden Startschutz, der beim eigenen Schuss endet.
+- Alle Start-, Ziel-, Überwachungs- und Flankenpositionen liegen für beide Teams spiegelgleich zu Punkt A (Kartendaten in `maps.js`, Paare: blauer Bot 1 ↔ roter Bot 1, blauer Bot 2 ↔ roter Bot 2, Spieler ↔ roter Bot 3). Das Training startet weiter vorn, damit die Ziele gut erreichbar bleiben.
+- Gegnerstärke in der Garage: Rekrut (Reaktion 1,2–1,8 s, 18 mrad Zielfehler, keine Flanken, kein Rauch), Veteran (0,8–1,3 s, 11 mrad) und Ass (0,5–0,8 s, 6 mrad, zielt tief auf Ketten und Seiten, zieht sich beim Nachladen zurück, +25 % Erfahrung).
 - Bei null Tickets oder Zeitablauf endet das Gefecht. Mehr Tickets gewinnen; gleiche Tickets ergeben ein Unentschieden.
 - Bots planen Wege mit A* in acht Richtungen und glätten sie, damit sie nicht im Zickzack fahren. Taktik (`botObjective` in `battle.js`): Ist Punkt A nicht sicher im eigenen Besitz, fahren sie hinein; schnelle Luchse nehmen dabei oft erst eine weite Flanke. Ist der Punkt gesichert, bleibt ein Wächter im Kreis und die anderen beziehen Überwachungsstellungen. Bots mit wenig Struktur ziehen sich nach Treffern zurück und legen manchmal Rauch. Nach Sichtverlust zielen sie drei Sekunden auf die zuletzt gesehene Position. Der Keiler hält zum Schießen kurz an, der Luchs schießt aus der Fahrt. Verbündete blockieren Schüsse, nehmen aber keinen Schaden.
 - Fahrzeugwahl in der Garage: Luchs (52 km/h, 40 mm, 3 Sekunden Nachladen) oder Keiler (36 km/h, 75 mm, 5 Sekunden Nachladen). Die Auswahl bleibt lokal gespeichert. Auch die Bot-Teams nutzen beide Fahrzeugtypen.
@@ -35,6 +37,9 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
 - Separates Training über „Erst üben“: fünf stationäre Ziele, keine Gegnerangriffe und kein Zeitlimit.
 - Minikarte, Tempo, Nachladeanzeige, synthetischer Motor- und Geschützsound.
 - Pause, Neustart und lokal gespeicherte Einstellungen für Maus, Sound, Kamerarückstoß und Grafikstufe (Hoch: weiche Schatten 2048 px; Mittel: 1024 px und geringere Auflösung; Niedrig: ohne Schatten). Touch-Geräte starten mit „Mittel“.
+- Treffermarker am Fadenkreuz und Funken am Einschlag; Kettenklappern und Motorlast im Klang.
+- Ergebnisbildschirm mit Schlüsselmoment (bester Abschuss, bevorzugt einer, der Punkt A entlastet hat, oder eine Eroberung im Alleingang) und einem Tipp.
+- Einstellungen zusätzlich: Y-Achse umkehren und Bildratenanzeige.
 - Einsatzbesprechung: Beim ersten Gefecht erklärt eine Karte Steuerung und Ziel; im Pausenmenü lässt sie sich über „Steuerung anzeigen“ erneut öffnen.
 - Nach dem eigenen Ausfall zeigt die Wiedereinstiegsanzeige, wer dich womit und wo getroffen hat.
 - Dauerhaftes Fahrerprofil mit Erfahrung, fünf Rängen, Gesamtstatistik und vier Tarnungen. Beide Panzer sind unabhängig vom Rang sofort verfügbar.
@@ -60,7 +65,7 @@ Der Karriere-Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-
 ## Dateien
 
 - `index.html`, `style.css`, `battle.css`, `hud.css`: Startbildschirm, HUD, Touch-Knöpfe, Einsatzbesprechung, Pause und Ergebnis.
-- `game.js`: Szene, Fahrzeuge, Maus- und Touch-Eingabe, Bots, Geschosse und Wiedereinstieg. `window.ironHorizon.sim(sekunden)` rechnet für Tests Spielzeit vor, `getState()` liefert den Zustand.
+- `game.js`: Szene, Fahrzeuge, Maus- und Touch-Eingabe, Bots, Geschosse und Wiedereinstieg. `window.ironHorizon.sim(sekunden)` rechnet für Tests Spielzeit vor, `getState()` liefert den Zustand, `balance({ vehicles, map, level, seed })` spielt in der Garage ein ganzes Gefecht nur mit Bots (Spielerpanzer per Autopilot, ohne Erfahrung) und liefert Ergebnis und Abschussliste.
 - `battle.js`: deterministische Rundenregeln, A*-Wegsuche mit Glättung und Bot-Taktik.
 - `maps.js`, `terrain.js`: Kartendaten (Starts, Ziel, Überwachungsstellungen, Flanken), Deckung und statische 3D-Geometrie. Ein Kartenwechsel gibt die alte Geometrie frei.
 - `systems.js`: Fahrzeugprofile, Module, Reparatur, Abpraller, Schaden, Streuung und Rauch-Sichtprüfung.
@@ -89,6 +94,8 @@ Bei laufendem Vorschau-Server kann `node iron-horizon/smoke-test.cjs` gestartet 
 `node iron-horizon/pointer-test.cjs` prüft verweigerte, fehlende, nicht antwortende und ereignisbasiert abgelehnte Mausbindung sowie mehrfaches Weiterfahren, Vorschau-Zielen und -Schießen und normale Pointer-Lock-Fortsetzung.
 
 `node iron-horizon/systems-browser-test.cjs` prüft Keiler-Auswahl und -Fahrverhalten, Rauchverbrauch und -Sichtblockade, Garagenwechsel und tatsächliche Reparatursteuerung. Für den Reparaturteil erhält nur die Browserantwort testweise beschädigte Startmodule; die gespeicherten Spieldateien werden nicht verändert.
+
+`node iron-horizon/balance-tournament.cjs [--rounds 40] [--level veteran]` spielt vier Aufstellungen auf beiden Karten durch und prüft die Balance-Regel aus dem Konzept (Seiten 45–55 %, Luchs gegen Keiler höchstens 55 % der Abschüsse).
 
 `node iron-horizon/touch-browser-test.cjs` emuliert ein Handy im Querformat und prüft Touch-Erkennung, Grafikstufe „Mittel“, die kompakte Garage, Einsatzbesprechung, Joystick-Fahren und -Lenken, Wisch-Zielen, FEUER, ZOOM, RAUCH, Pause über dem Touch-Feld und den Hochformat-Hinweis.
 

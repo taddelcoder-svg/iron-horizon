@@ -5,7 +5,7 @@ const { findPath } = require('./battle.js');
 
 for (const level of Object.values(levels)) {
   test(`${level.name}: starts, training targets and objective positions are clear`, () => {
-    for (const [x, z] of [level.playerStart, level.playerRespawn, ...level.spawns, ...level.training, ...level.goals, ...level.holds.blue, ...level.holds.red, ...level.flanks.blue, ...level.flanks.red]) assert.equal(blocked(level, x, z, 3.1), false, `Blocked position ${x},${z}`);
+    for (const [x, z] of [level.playerStart, level.playerRespawn, level.trainingStart, ...level.spawns, ...level.training, ...level.goals, ...level.holds.blue, ...level.holds.red, ...level.flanks.blue, ...level.flanks.red]) assert.equal(blocked(level, x, z, 3.1), false, `Blocked position ${x},${z}`);
     for (const [x, z] of level.goals) assert.ok(Math.hypot(x - level.capture.x, z - level.capture.z) < level.capture.radius);
   });
   test(`${level.name}: every spawn reaches the objective without crossing structures`, () => {

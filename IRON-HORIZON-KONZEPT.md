@@ -1,10 +1,10 @@
 # Iron Horizon – Spielkonzept
 
-Stand: 27. September 2026 · Konzept 1.0 · Spielstand: Prototyp 0.6
+Stand: 27. September 2026 · Konzept 1.1 · Spielstand: Prototyp 0.7
 
-Dieses Dokument beschreibt Iron Horizon vollständig: was im Prototyp 0.6 bereits spielbar ist, wie jedes System funktionieren soll und in welcher Reihenfolge das Spiel bis zur Version 1.0 fertig wird. Zahlen sind Spielwerte, keine historischen Daten. Werte, die noch nicht umgesetzt sind, sind Startwerte für Spieltests.
+Dieses Dokument beschreibt Iron Horizon vollständig: was im Prototyp 0.7 bereits spielbar ist, wie jedes System funktionieren soll und in welcher Reihenfolge das Spiel bis zur Version 1.0 fertig wird. Zahlen sind Spielwerte, keine historischen Daten. Werte, die noch nicht umgesetzt sind, sind Startwerte für Spieltests.
 
-**Legende:** ✅ umgesetzt in 0.6 · 🔜 geplant bis 1.0 · 💡 spätere Ausbaustufe
+**Legende:** ✅ umgesetzt (Stand 0.7) · 🔜 geplant bis 1.0 · 💡 spätere Ausbaustufe
 
 ## 1. Das Spiel in einem Satz
 
@@ -30,7 +30,7 @@ Iron Horizon gehört zur privaten Swimming-Lions-Spielesammlung für Familie und
 | --- | --- |
 | Plattform | Browser mit WebGL, keine Installation |
 | Eingabe | ✅ Maus und Tastatur mit Pointer-Lock · ✅ Touch mit Joystick und Knöpfen (Querformat) · 💡 Gamepad |
-| Hosting | ✅ Eigener kleiner Node-Server im Docker-Container auf Render, gemeinsames Passwort (`ZUGANG_PASSWORT`), öffentliche Datenschutzseite |
+| Hosting | ✅ Eigener kleiner Node-Server im Docker-Container auf Render (https://iron-horizon.onrender.com), gemeinsames Passwort (`ZUGANG_PASSWORT`), öffentliche Datenschutzseite, Eintrag in der Spielesammlung |
 | Daten | ✅ Alles bleibt im Browser (`localStorage`); Export und Import als JSON-Datei |
 | Spielerzahl | ✅ Einzelspieler gegen Bots · 💡 Online-Koop und Online-Gefechte |
 | Stil | Stilisierte, gut erkennbare 3D-Fahrzeuge in einer fiktiven, an frühe Panzertechnik angelehnten Welt. Keine Nationen, keine echten Fahrzeugnamen, keine Forschungsbäume. |
@@ -38,13 +38,13 @@ Iron Horizon gehört zur privaten Swimming-Lions-Spielesammlung für Familie und
 ## 4. So verläuft die erste Sitzung
 
 1. ✅ Du öffnest das Spiel aus der Sammlung, gibst einmal das Passwort ein und siehst deinen Panzer in der Garage.
-2. ✅ Du wählst Karte („Grenzposten“ oder „Steinbruch“) und Fahrzeug: den beweglichen „Luchs“ oder den robusteren „Keiler“. Beide sind sofort verfügbar.
+2. ✅ Du wählst Karte („Grenzposten“ oder „Steinbruch“), Gegnerstärke (Rekrut, Veteran, Ass) und Fahrzeug: den beweglichen „Luchs“ oder den robusteren „Keiler“. Beide sind sofort verfügbar.
 3. ✅ „Gefecht starten“ lädt die Karte mit dir und zwei verbündeten Bots gegen drei gegnerische Bots. Wer erst üben will, nimmt „Erst üben · Testgelände öffnen“.
 4. ✅ Eine Einsatzbesprechung erklärt beim ersten Mal Steuerung und Ziel, passend zu Maus oder Touch.
 5. ✅ Du fährst über die Hauptstraße oder eine Flanke zum Punkt A. Ein schneller gegnerischer Luchs versucht, dich über die Seite zu überraschen.
 6. ✅ Ein Treffer auf deine Kette hält dich auf. Das Schadensschema zeigt die Kette rot; du legst Rauch und reparierst, während der Turm weiter feuert.
 7. ✅ Nach deinem Ausfall zeigt die Wiedereinstiegsanzeige, wer dich wo getroffen hat, zum Beispiel „Getroffen von Gegner 2 · Luchs · Seite“.
-8. ✅ Das Ergebnis zeigt Abschüsse, wirksame Treffer, Verluste, Zeit am Ziel und die verdiente Erfahrung. Du kannst sofort erneut antreten.
+8. ✅ Das Ergebnis zeigt Abschüsse, wirksame Treffer, Verluste, Zeit am Ziel, einen Schlüsselmoment mit Tipp und die verdiente Erfahrung. Du kannst sofort erneut antreten.
 
 Die gewünschte Erfahrung: Du verstehst nach dem Gefecht, welche Entscheidung den Kampf verändert hat.
 
@@ -66,7 +66,7 @@ Die gewünschte Erfahrung: Du verstehst nach dem Gefecht, welche Entscheidung de
 | Wiedereinstieg | Nach 6 Sekunden an der eigenen Basis, 3 Sekunden Startschutz, der beim eigenen Schuss endet |
 | Sieg | Gegner erreicht 0 Tickets oder hat bei Zeitablauf weniger Tickets; gleiche Tickets = Unentschieden |
 
-Die Basen liegen außerhalb der direkten Sichtlinie des Ziels. Bleibt der Spieler untätig, kämpfen zwei blaue gegen drei rote Bots: In einem Testlauf mit 0.6 dauerte das rund fünf Minuten (mit 0.5 gut zwei, weil die Bots nur stur zum Punkt fuhren). Mit aktivem Spieler ist das Ergebnis offen.
+Die Basen liegen außerhalb der direkten Sichtlinie des Ziels. Seit 0.7 liegen alle Start-, Ziel- und Überwachungspositionen beider Teams spiegelgleich zum Punkt A; auch der Spieler startet so weit entfernt wie die Gegner. Ein Gefecht zwischen Bots dauert im Mittel fünf bis sechseinhalb Minuten.
 
 ### 5.2 Training ✅
 
@@ -97,7 +97,11 @@ Kurze Solo-Aufgaben mit festen Zielen, zum Beispiel „Konvoi abfangen“ (drei 
 
 Kaliber und Geschwindigkeiten dienen der Gestaltung; eine historische Simulation ist nicht vorgesehen. Jedes Fahrzeug kann jedes andere mit guten Treffern besiegen. Es gibt eine panzerbrechende Munitionsart und zwei Rauchladungen pro Fahrzeugleben.
 
-**Balanceregel:** Werden Werte geändert, spielen die Bots vorher ein Rundenturnier ohne Spieler (6 Bots, beide Karten, je Fahrzeugmischung mindestens 40 Gefechte). Kein Fahrzeug darf dabei in mehr als 55 % seiner Duelle vorn liegen; blaue und rote Seite müssen jeweils zwischen 45 und 55 % gewinnen.
+**Balanceregel:** Werden Werte geändert, spielen die Bots vorher ein Rundenturnier ohne Spieler (`iron-horizon/balance-tournament.cjs`: sechs Bots, der Spielerpanzer fährt per Autopilot mit; beide Karten; vier Aufstellungen mit je 40 Gefechten pro Karte). Kein Fahrzeug darf in mehr als 55 % der Luchs-gegen-Keiler-Abschüsse vorn liegen; in gespiegelten Aufstellungen muss jede Seite zwischen 45 und 55 % gewinnen.
+
+✅ **Ergebnis 0.7** (320 Gefechte, Stufe Veteran): Seitenbalance Blau 51 %, Luchs gegen Keiler 51 % der Abschüsse, beide Regeln erfüllt. Das Turnier deckte drei Fehler auf, die behoben sind: Der Spieler startete auf dem Grenzposten 20 m näher am Ziel als alle anderen, Ziel- und Überwachungspositionen der Teams waren nicht spiegelgleich, und Rot fehlte am Grenzposten das Gegenstück zum Haus nahe Punkt A.
+
+🔜 **Offen für 0.8:** Die Karten bevorzugen noch einen Fahrzeugtyp, wenn ein Team nur aus Luchsen und das andere nur aus Keilern besteht (Grenzposten: Keiler-Teams gewinnen rund 70–80 %, Steinbruch: Luchs-Teams rund 60 %). Gemischte Teams, wie sie im Spiel vorkommen, sind davon kaum betroffen. Zusatzregel ab 0.8: Reine Fahrzeugteams dürfen je Karte höchstens 60 : 40 gewinnen.
 
 ## 7. Steuerung und Kamera
 
@@ -114,7 +118,7 @@ Kaliber und Geschwindigkeiten dienen der Gestaltung; eine historische Simulation
 
 Die Kamera folgt leicht erhöht hinter dem Panzer und weicht Häusern und Felsen aus. Das weiße Fadenkreuz zeigt die Zielvorgabe, der kleine orange Kreis die tatsächliche Rohrrichtung: Ein langsamer Turm schießt erst nach seiner Drehung dorthin. Ein gestrichelter Kreis zeigt die aktuelle Streuung. Verweigert eine eingebettete Vorschau den Pointer-Lock, startet eine Ersatzsteuerung mit Zielen per Maus und Drehen am Bildrand.
 
-Einstellungen ✅: Mausgeschwindigkeit, Ton, Rückstoß-Kamera, Grafikstufe. 🔜 Y-Achse umkehren, Touch-Empfindlichkeit getrennt von der Maus, Linkshänder-Anordnung der Touch-Knöpfe.
+Einstellungen ✅: Mausgeschwindigkeit, Ton, Rückstoß-Kamera, Grafikstufe, Y-Achse umkehren (Maus und Touch), Bildratenanzeige. 🔜 Touch-Empfindlichkeit getrennt von der Maus, Linkshänder-Anordnung der Touch-Knöpfe.
 
 ## 8. Treffer und Schäden
 
@@ -135,7 +139,7 @@ Jeder Treffer beantwortet drei Fragen: Welche Fläche wurde getroffen? Prallt da
 - ✅ **Reparatur:** 6 Sekunden ohne Bewegung und ohne eigenen Schuss; stellt alle Module wieder her, aber keine Struktur. Bewegung, Schuss, Loslassen oder ein neuer Treffer brechen ab.
 - ✅ **Rauch:** 10 Sekunden, zwei Ladungen pro Leben, 4 Sekunden Abstand. Rauch nimmt Bots und Gegnermarkierungen die Sicht.
 - ✅ **Rückmeldung:** Meldungen unterscheiden „Abpraller“, „Durchschlag · Front/Seite/Heck“, beschädigte Module und „Fahrzeug ausgeschaltet“. Abpraller klingen hell, Durchschläge dumpf. Ein Schadensschema neben der Geschwindigkeit zeigt ausgefallene Module in Rot.
-- 🔜 **Treffermarker (0.7):** kurzes Symbol am Fadenkreuz (Abpraller, Durchschlag, Modul) und Funken am getroffenen Fahrzeug, damit Treffer auch ohne Lesen verständlich sind.
+- ✅ **Treffermarker:** kurzes Symbol am Fadenkreuz (grau schräg = Abpraller, orange Kreuz = Durchschlag, gelb = Modul, rot groß = ausgeschaltet) und Funken am Einschlag; Abpraller sprühen entlang der abgelenkten Bahn.
 - 💡 **Komponentenmodell:** Besatzung, Munitionslager und Brände ersetzen später die vereinfachte Struktur, aber erst, wenn die Kampagne sie braucht.
 
 ## 9. Karten
@@ -152,25 +156,25 @@ Grenzposten und Steinbruch sind eben. Das Flusstal braucht ein Höhenraster, auf
 
 ## 10. Bots
 
-✅ **Umgesetzt in 0.6:**
+✅ **Umgesetzt:**
 
 - Wegsuche mit A* in acht Richtungen über ein 6-m-Raster, anschließend geglättet; festgefahrene Bots setzen zurück und suchen einen neuen Weg um andere Fahrzeuge.
 - Taktik nach Lage am Punkt: Ist Punkt A nicht sicher im eigenen Besitz, fahren alle zum Punkt. Schnelle Luchse nehmen dabei in etwa jedem zweiten Leben erst eine weite Flanke. Ist der Punkt gesichert, bleibt ein Wächter im Kreis, die anderen beziehen Überwachungsstellungen. Wird der Punkt angegriffen, kehren alle zurück.
 - Bots mit weniger als 35 Strukturpunkten ziehen sich nach einem Treffer zurück; unter 60 legen sie manchmal Rauch.
 - In Stellung drehen sie die Front zur Bedrohung, damit ihre Panzerung wirkt.
 - Sicht nur ohne Hindernis und Rauch dazwischen, bis 115 m. Nach Sichtverlust zielen sie drei Sekunden auf die zuletzt gesehene Position.
-- Reaktionszeit 0,8–1,3 Sekunden nach neuem Ziel, Zielfehler zusätzlich zur Fahrzeugstreuung. Der Keiler hält zum Schießen kurz an, der Luchs schießt aus der Fahrt.
+- Reaktionszeit und Zielfehler nach Schwierigkeitsstufe, zusätzlich zur Fahrzeugstreuung. Der Keiler hält zum Schießen kurz an, der Luchs schießt aus der Fahrt.
 - Beschädigte Module reparieren Bots im Stillstand. Eigene Fahrzeuge blockieren Schüsse, nehmen aber keinen Schaden.
 
-🔜 **Schwierigkeitsstufen (0.7):**
+✅ **Schwierigkeitsstufen:**
 
 | Stufe | Reaktionszeit | Zusätzlicher Zielfehler | Taktik |
 | --- | --- | --- | --- |
 | Rekrut | 1,2–1,8 s | 18 mrad | Keine Flanken, kein Rauch |
 | Veteran (heute) | 0,8–1,3 s | 11 mrad | Wie in 0.6 |
-| Ass | 0,5–0,8 s | 6 mrad | Zielt auf Seiten und Ketten, nutzt Deckung beim Nachladen |
+| Ass | 0,5–0,8 s | 6 mrad | Zielt tief auf Ketten und Seiten, wenn das Ziel nicht frontal steht; zieht sich unter 60 Strukturpunkten beim Nachladen in Deckung zurück |
 
-Die Stufe wird in der Garage gewählt; Ass-Gefechte geben 25 % mehr Erfahrung.
+Die Stufe wird in der Garage gewählt, gilt für die ganze Runde und steht im HUD. Ass-Gefechte geben 25 % mehr Erfahrung (eigene Zeile „Ass-Bonus“ im Ergebnis).
 
 ## 11. Garage und Fortschritt
 
@@ -190,7 +194,7 @@ Keine Reparaturkosten, kein täglicher Teilnahmezwang, keine bezahlten Stärkevo
 
 ✅ HUD: oben Tickets und Restzeit, links Ziel und Fahrzeugzustand mit Schadensschema, unten Nachladen und Ausrüstung, rechts die Minikarte. Gegner werden erst bei Sichtkontakt markiert; Freund und Feind unterscheiden sich zusätzlich zur Farbe durch Symbole (◆/◇) und Rufnamen. Auf Touch-Geräten rückt das HUD in die Ecken und lässt Platz für die Daumen.
 
-🔜 (0.7): Kettenklappern, Motorlast beim Anfahren, Einschlagfunken, Staubfahnen hinter schnellen Fahrzeugen, Ergebnisbildschirm mit „Schlüsselmoment“ (zum Beispiel „Dein Flankenschuss auf Gegner 3 hat Punkt A gerettet“).
+✅ Kettenklappern (gefiltertes Rauschen, Takt folgt der Geschwindigkeit), hörbare Motorlast beim Beschleunigen, Einschlagfunken, Staubfahnen hinter fahrenden Bots. Der Ergebnisbildschirm erzählt einen Schlüsselmoment, zum Beispiel „Dein Treffer ins Heck von Gegner 1 (Keiler) aus 64 m hat Punkt A entlastet“, und gibt einen Tipp, etwa zu Abprallern, Flanken oder zur Zeit am Punkt.
 
 ## 13. Technik
 
@@ -201,9 +205,9 @@ Keine Reparaturkosten, kein täglicher Teilnahmezwang, keine bezahlten Stärkevo
 | Spielschleife | `game.js` mit festem Simulationsschritt von 1/60 s; `window.ironHorizon.sim(s)` rechnet für Tests vor |
 | Server | `server.js` liefert nur freigegebene Spieldateien aus, `zugang.js` schützt mit Passwort, `/datenschutz` und `/healthz` sind offen |
 | Betrieb | Docker-Image auf Render, keine Datenbank, keine Spielerdaten auf dem Server |
-| Tests | 29 Node-Tests für Regeln, Taktik, Karten und Fortschritt; zusätzliche Playwright-Browsertests für Maus, Karten, Lebenszyklus und Fortschritt |
+| Tests | 33 Node-Tests für Regeln, Taktik, Schlüsselmoment, Karten und Fortschritt; sieben Playwright-Browsertests für Maus, Touch, Karten, Lebenszyklus, Module und Fortschritt; Balance-Turnier mit `window.ironHorizon.balance()` |
 
-Leistungsziele: 60 Bilder pro Sekunde auf einem aktuellen Laptop mit Grafikstufe Hoch, mindestens 30 auf einem Mittelklasse-Handy mit Mittel. Diese Werte sind noch nicht gemessen; eine eingebaute Bildratenanzeige (🔜 0.7) soll das nachholen.
+Leistungsziele: 60 Bilder pro Sekunde auf einem aktuellen Laptop mit Grafikstufe Hoch, mindestens 30 auf einem Mittelklasse-Handy mit Mittel. Die Bildratenanzeige (✅ Pausenmenü) macht das auf echten Geräten messbar; Messwerte liegen noch nicht vor.
 
 Für Online-Spiel 💡 wird die Simulation auf den Server verlegt, so wie bei Weltreiche: Der Server rechnet mit denselben Regeldateien, die Browser senden nur Eingaben und zeigen vorhergesagte Zwischenstände.
 
@@ -217,8 +221,8 @@ Für Online-Spiel 💡 wird die Simulation auf den Server verlegt, so wie bei We
 | --- | --- | --- |
 | 0.5 ✅ | Zwei Karten, zwei Panzer, Vorherrschaft, Training, Fortschritt | Runde endet zuverlässig, Fortschritt bleibt erhalten |
 | 0.6 ✅ | Bot-Taktik, Abpraller, Turmantrieb, Streuung, Schadensschema, Touch-Steuerung, Grafikstufen, Einsatzbesprechung, Server mit Passwort und Datenschutz | Gefecht ist auf Handy und Rechner spielbar; ohne Spieler dauert es mehrere Minuten; Server liefert nur Spieldateien |
-| 0.7 🔜 | Schwierigkeitsstufen, Treffermarker und Funken, Klangfeinschliff, Y-Achse umkehren, Bildratenanzeige, Ergebnis mit Schlüsselmoment, Balance-Turnier | Rekrut ist für Einsteiger gewinnbar, Ass fordert Erfahrene; Balance-Regel aus Abschnitt 6 erfüllt |
-| 0.8 🔜 | Dachs (Jagdpanzer), Modus Durchbruch, Punkt B auf beiden Karten | Dachs besteht die Balance-Regel; Durchbruch endet zuverlässig für beide Seiten |
+| 0.7 ✅ | Schwierigkeitsstufen, Treffermarker und Funken, Klangfeinschliff, Y-Achse umkehren, Bildratenanzeige, Ergebnis mit Schlüsselmoment, Balance-Turnier, spiegelgleiche Karten | Balance-Regel aus Abschnitt 6 erfüllt (51 % / 51 %); ob Rekrut für Einsteiger gewinnbar ist, zeigt der Spieltest mit der Familie |
+| 0.8 🔜 | Dachs (Jagdpanzer), Modus Durchbruch, Punkt B auf beiden Karten, Kartenbalance für reine Fahrzeugteams | Dachs besteht die Balance-Regel; reine Fahrzeugteams höchstens 60 : 40 je Karte; Durchbruch endet zuverlässig für beide Seiten |
 | 0.9 🔜 | Karte Flusstal mit Höhengelände | Fahrzeuge, Kamera, Geschosse und Bots kommen mit Steigungen zurecht; Anfahrtszeiten weichen höchstens 10 % ab |
 | 1.0 🔜 | Auszeichnungen, neue Tarnungen, Feinschliff, Spielekarte in der Sammlung aktualisiert | Alle Tests grün, zehn Gefechte ohne Fehler auf Rechner und Handy |
 
@@ -245,4 +249,4 @@ Flugzeuge, Schiffe, mehrere Realismusmodi, große Forschungsbäume und vollstän
 
 **Tags:** Einzelspieler · 3D · Panzer
 
-**Status:** Prototyp 0.6, passwortgeschützt auf Render.
+**Status:** Prototyp 0.7, passwortgeschützt auf Render und in der Sammlung eingetragen.
