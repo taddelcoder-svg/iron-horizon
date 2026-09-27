@@ -91,8 +91,10 @@ const path = require('node:path');
     await page.locator('#resumeButton').click();
     await page.waitForFunction(() => window.ironHorizon.getState().mode === 'playing');
     await page.goto('http://127.0.0.1:4177/');
-    assert.equal(await page.locator('a.spiel[href="iron-horizon/"]').count(), 1);
+    assert.equal(new URL(page.url()).pathname, '/iron-horizon/', 'Root forwards to the game');
+    const privacy = await page.goto('http://127.0.0.1:4177/datenschutz'); assert.equal(privacy.status(), 200);
     assert.deepEqual(errors, [], 'No uncaught browser errors or missing assets');
-    console.log(JSON.stringify({ status: 'PASS', checks: ['rendering', 'real pointer lock', 'hidden cursor', 'lock denial allows preview play', 'target hit', 'reload gate', 'movement', 'braking', 'independent turret', 'pause', 'reset', 'solid collision', 'settings persistence', 'compact layout', 'bot navigation', 'bot combat', 'match pause', 'collection link', 'browser errors'], screenshots: output }, null, 2));
+    const hidden = await page.goto('http://127.0.0.1:4177/iron-horizon/smoke-test.cjs'); assert.equal(hidden.status(), 404, 'Test files are not served');
+    console.log(JSON.stringify({ status: 'PASS', checks: ['rendering', 'real pointer lock', 'hidden cursor', 'lock denial allows preview play', 'target hit', 'reload gate', 'movement', 'braking', 'independent turret', 'pause', 'reset', 'solid collision', 'settings persistence', 'compact layout', 'bot navigation', 'bot combat', 'match pause', 'root redirect', 'privacy page', 'no test files served', 'browser errors'], screenshots: output }, null, 2));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -31,3 +31,21 @@ test('smoke blocks intersecting sightlines, including observers inside; not dist
   assert.equal(S.smokeBlocks(from, to, [{ x: 10, y: 2, z: 0, radius: 4, life: 0 }]), false);
   assert.equal(S.smokeBlocks(from, to, [{ x: 30, y: 2, z: 0, radius: 4, life: 5 }]), false);
 });
+test('turret ring hits slow the turret; repair restores every module', () => {
+  const s = S.fresh(); assert.equal(S.hitModule(s, { x: .3, y: 1.9, z: 0 }), 'turret'); assert.equal(S.turretRate(s), .35); assert.equal(S.damaged(s), true);
+  assert.equal(S.mobility(s), 1, 'a jammed turret does not stop the hull');
+  assert.equal(S.repair(s, S.REPAIR_TIME, true, false), true); assert.equal(S.turretRate(s), 1); assert.equal(S.damaged(s), false);
+});
+test('flat impacts ricochet; direct ones do not', () => {
+  assert.equal(S.ricochet(1), false); assert.equal(S.ricochet(Math.cos(60 * Math.PI / 180)), false);
+  assert.equal(S.ricochet(Math.cos(80 * Math.PI / 180)), true);
+});
+test('damage by facing, calibre and track absorption', () => {
+  const { luchs, keiler } = S.profiles;
+  assert.equal(S.damage(1, luchs, luchs, null), 24); assert.equal(S.damage(0, luchs, luchs, null), 38); assert.equal(S.damage(-1, luchs, luchs, null), 50);
+  assert.equal(S.damage(1, luchs, keiler, null), 17); assert.equal(S.damage(0, keiler, luchs, null), 55); assert.equal(S.damage(0, luchs, luchs, 'tracks'), 17);
+});
+test('standing still is more accurate than driving', () => {
+  const { luchs, keiler } = S.profiles;
+  assert.ok(S.spread(luchs, 0) < S.spread(luchs, 1) / 4); assert.ok(S.spread(keiler, .5) > S.spread(luchs, .5)); assert.ok(S.spread(luchs, 0, 1) > S.spread(luchs, 0));
+});

@@ -5,7 +5,7 @@ const { findPath } = require('./battle.js');
 
 for (const level of Object.values(levels)) {
   test(`${level.name}: starts, training targets and objective positions are clear`, () => {
-    for (const [x, z] of [level.playerStart, level.playerRespawn, ...level.spawns, ...level.training, ...level.goals]) assert.equal(blocked(level, x, z, 3.1), false, `Blocked position ${x},${z}`);
+    for (const [x, z] of [level.playerStart, level.playerRespawn, ...level.spawns, ...level.training, ...level.goals, ...level.holds.blue, ...level.holds.red, ...level.flanks.blue, ...level.flanks.red]) assert.equal(blocked(level, x, z, 3.1), false, `Blocked position ${x},${z}`);
     for (const [x, z] of level.goals) assert.ok(Math.hypot(x - level.capture.x, z - level.capture.z) < level.capture.radius);
   });
   test(`${level.name}: every spawn reaches the objective without crossing structures`, () => {
@@ -19,6 +19,18 @@ for (const level of Object.values(levels)) {
         previous = point;
       }
       assert.ok(Math.hypot(previous.x - gx, previous.z - gz) < 5);
+    }
+  });
+  test(`${level.name}: overwatch and flank positions are reachable and on the own side`, () => {
+    const free = (px, pz) => blocked(level, px, pz, 3.1);
+    for (const team of ['blue', 'red']) {
+      const [sx, sz] = level.spawns[team === 'blue' ? 0 : 2], sign = team === 'blue' ? 1 : -1;
+      for (const [x, z] of [...level.holds[team], ...level.flanks[team]]) {
+        assert.ok(findPath({ x: sx, z: sz }, { x, z }, free).length > 0, `${team} cannot reach ${x},${z}`);
+        assert.ok(findPath({ x, z }, level.capture, free).length > 0, `${x},${z} cannot reach the objective`);
+        assert.ok((z - level.capture.z) * sign > 0, `${x},${z} lies on the enemy side`);
+      }
+      for (const [x, z] of level.holds[team]) assert.ok(Math.hypot(x - level.capture.x, z - level.capture.z) < 50);
     }
   });
 }

@@ -4,30 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#151c19">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Iron Horizon · Swimming Lions</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="battle.css">
   <link rel="stylesheet" href="career.css">
+  <link rel="stylesheet" href="hud.css">
   <script defer src="vendor/three.min.js"></script>
   <script defer src="battle.js"></script>
   <script defer src="systems.js"></script>
   <script defer src="career.js"></script>
   <script defer src="maps.js"></script>
   <script defer src="terrain.js"></script>
-  <script defer src="game.js?v=0.5"></script>
+  <script defer src="game.js?v=0.6"></script>
 </head>
 <body>
   <canvas id="world" aria-label="Iron Horizon 3D-Panzergefecht"></canvas>
   <div class="grain"></div>
   <header class="topbar">
-    <a class="brand" href="../"><span class="brand-icon">IH</span><span>IRON HORIZON<small>SWIMMING LIONS</small></span></a>
+    <a class="brand" href="./"><span class="brand-icon">IH</span><span>IRON HORIZON<small>SWIMMING LIONS</small></span></a>
     <button id="careerButton" class="career-button"><span id="garageRank">REKRUT · 0 EP</span><small>PROFIL & TARNUNGEN ↗</small></button>
     <div class="location"><i></i> <strong id="locationName">GRENZPOSTEN</strong> <span>/</span> VORHERRSCHAFT</div>
     <button id="pauseButton" class="outline" hidden>ESC · PAUSE</button>
   </header>
   <main id="menu" class="menu">
     <section class="intro">
-      <div class="eyebrow"><span></span> VORHERRSCHAFT / 0.5</div>
+      <div class="eyebrow"><span></span> VORHERRSCHAFT / 0.6</div>
       <h1>STAHL.<br>STAUB.<br><em>DEIN REVIER.</em></h1>
       <p>Spür das Gewicht. Dreh den Turm.<br>Setz den ersten Treffer.</p>
       <div class="mission"><span id="missionNumber" class="number">01</span><div><b id="missionTitle">Grenzposten erobern.</b><p>Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.</p></div></div>
@@ -35,7 +39,7 @@
       <div class="vehicle-picker" aria-label="Fahrzeug wählen"><button id="selectLuchs" aria-pressed="true"><b>01 · LUCHS</b><span>Schnell & beweglich</span></button><button id="selectKeiler" aria-pressed="false"><b>02 · KEILER</b><span>Starke Front & Feuerkraft</span></button></div>
       <button id="startButton" class="primary" disabled>GELÄNDE WIRD GELADEN <span>↗</span></button>
       <button id="trainingButton" class="training-link" disabled>Erst üben · Testgelände öffnen</button>
-      <div class="menu-foot">EINZELSPIELER <span>•</span> MAUS & TASTATUR <span>•</span> LOKAL</div>
+      <div class="menu-foot">EINZELSPIELER <span>•</span> <b id="menuInput">MAUS & TASTATUR</b> <span>•</span> <a href="/datenschutz" target="_blank" rel="noopener">DATENSCHUTZ</a></div>
       <p id="error" role="alert" hidden></p>
     </section>
     <aside class="vehicle-card"><div class="eyebrow">DEIN FAHRZEUG <span id="vehicleIndex">01 / 02</span></div><h2 id="vehicleName">LUCHS <span>MK. I</span></h2><p id="vehicleRole">LEICHTER PANZER · AUFKLÄRUNG</p><div class="stats"><div><b id="vehicleSpeed">52<small>KM/H</small></b><span>MOBILITÄT</span></div><div><b id="vehicleCalibre">40<small>MM</small></b><span>KALIBER</span></div><div><b id="vehicleReload">3<small>SEK.</small></b><span>NACHLADEN</span></div></div><div id="vehicleNote" class="vehicle-note">Leicht auf den Ketten. Schnell an der Flanke.</div><div id="garagePaints" class="paint-swatches" aria-label="Tarnung wählen"></div></aside>
@@ -46,19 +50,30 @@
     <div id="matchHud" class="match-hud"><b id="blueTickets">100</b><span><small>VORHERRSCHAFT</small><strong id="matchTime">07:00</strong></span><b id="redTickets">100</b></div>
     <div class="compass"><span>W</span><span>NW</span><b id="bearing">000° N</b><span>NO</span><span>O</span></div>
     <div id="reticle" class="reticle"><i></i><b id="range">BEREIT</b></div>
+    <i id="spreadRing" class="spread-ring"></i>
     <div id="gunMarker" class="gun-marker"></div>
     <div id="notice" class="notice" role="status"></div>
-    <div class="telemetry"><span id="hudVehicle" class="eyebrow">LUCHS MK. I</span><div><strong id="speed">0</strong><span>KM/H <b id="gear">N</b></span></div><div id="healthTrack" class="health-track"><i id="healthBar"></i></div><span id="driveStatus">FAHRZEUG EINSATZBEREIT</span><div class="module-status"><span id="trackStatus">KETTE · OK</span><span id="engineStatus">MOTOR · OK</span></div></div>
+    <div class="telemetry"><span id="hudVehicle" class="eyebrow">LUCHS MK. I</span><div><strong id="speed">0</strong><span>KM/H <b id="gear">N</b></span></div><div id="healthTrack" class="health-track"><i id="healthBar"></i></div><span id="driveStatus">FAHRZEUG EINSATZBEREIT</span><div class="module-status"><svg class="damage-schema" viewBox="0 0 40 56" aria-hidden="true"><rect data-module="tracks" x="2" y="4" width="7" height="48" rx="2"/><rect data-module="tracks" x="31" y="4" width="7" height="48" rx="2"/><rect class="hull" x="10" y="6" width="20" height="44" rx="2"/><rect data-module="engine" x="13" y="38" width="14" height="9" rx="1"/><circle data-module="turret" cx="20" cy="22" r="8"/><rect data-module="turret" x="19" y="1" width="2" height="14"/></svg><span id="trackStatus">KETTE · OK</span><span id="engineStatus">MOTOR · OK</span><span id="turretStatus">TURM · OK</span></div></div>
     <div class="ammo"><span id="hudCalibre" class="eyebrow">40 MM · PANZERBRECHEND</span><b id="reloadLabel">FEUERBEREIT <span>∞</span></b><div class="reload-track"><i id="reloadBar"></i></div></div>
     <div class="equipment"><span><kbd>Q</kbd> RAUCH <b id="smokeCount">2 / 2</b></span><span><kbd>R</kbd> <b id="repairLabel">REPARIEREN · HALTEN</b></span><div class="repair-track"><i id="repairBar"></i></div></div>
     <div class="map"><canvas id="minimap" width="180" height="180" aria-label="Geländekarte"></canvas><span id="mapCaption">GRENZPOSTEN / 01</span></div>
-    <div class="controls"><span><kbd>W A S D</kbd> Fahren</span><span><kbd>MAUS</kbd> Turm</span><span><kbd>LMB</kbd> Feuern</span><span><kbd>RMB</kbd> Zoom</span><span><kbd>SPACE</kbd> Bremsen</span><span><kbd>ESC</kbd> Pause</span></div>
+    <div class="controls"><span><kbd>W A S D</kbd> Fahren</span><span><kbd>MAUS</kbd> Turm</span><span><kbd>LMB</kbd> Feuern</span><span><kbd>RMB</kbd> Zoom</span><span><kbd>SPACE</kbd> Bremsen</span><span><kbd>Q</kbd> Rauch</span><span><kbd>R</kbd> Reparieren</span><span><kbd>ESC</kbd> Pause</span></div>
   </section>
+  <div id="touch" class="touch-layer" aria-hidden="true">
+    <div id="stickBase" class="stick-base"><i id="stickKnob"></i><span>FAHREN</span></div>
+    <div id="touchFire" class="t-btn t-fire" data-touch="fire">FEUER</div>
+    <div id="touchZoom" class="t-btn t-zoom" data-touch="zoom">ZOOM</div>
+    <div class="t-btn t-smoke" data-touch="smoke">RAUCH<b id="touchSmoke">2</b></div>
+    <div id="touchRepair" class="t-btn t-repair" data-touch="repair">REPA&shy;RATUR</div>
+    <div class="t-btn t-brake" data-touch="brake">BREMSE</div>
+  </div>
+  <aside id="tutorial" class="tutorial" hidden aria-live="polite"><div class="career-heading"><span class="eyebrow">EINSATZBESPRECHUNG</span><button id="closeTutorial" class="outline" aria-label="Einweisung schließen">✕</button></div><p id="tutorialGoal"></p><ul id="tutorialBody"></ul></aside>
+  <div class="rotate-hint">Dreh dein Gerät ins Querformat – dann ist mehr Platz für Joystick und Knöpfe.</div>
   <div id="damageFlash" class="damage-flash" hidden></div>
-  <div id="respawn" class="respawn" hidden><span>FAHRZEUG AUSGESCHALTET</span><b>Wiedereinstieg in <i id="respawnTime">6</i></b></div>
+  <div id="respawn" class="respawn" hidden><span>FAHRZEUG AUSGESCHALTET</span><b>Wiedereinstieg in <i id="respawnTime">6</i></b><small id="respawnCause"></small></div>
   <div id="labels" class="vehicle-labels"></div>
-  <section id="pause" class="modal" hidden><div class="panel"><span class="eyebrow">GRENZPOSTEN 01</span><h2>Kurze Feuerpause.</h2><p id="pauseHint">Weiterfahren setzt das Spiel fort. Esc gibt die Maus frei und pausiert.</p><button id="resumeButton" class="primary">WEITERFAHREN <span>↗</span></button><label>Mausgeschwindigkeit <input id="sensitivity" type="range" min="0.4" max="2" step="0.1" value="1"></label><label><input id="sound" type="checkbox" checked> Sound aktiv</label><label><input id="shake" type="checkbox" checked> Rückstoß-Kamera</label><button id="retryMouseButton" class="outline" hidden>MAUSBINDUNG ERNEUT VERSUCHEN</button><button id="resetButton" class="outline">RUNDE NEU STARTEN</button><button id="garageButton" class="outline">RUNDE VERLASSEN · ZUR GARAGE</button><a id="externalBrowser" class="browser-link" href="./" target="_blank" rel="noopener" hidden>In einem separaten Browserfenster öffnen ↗</a><a href="../">Zur Spielesammlung</a></div></section>
-  <section id="result" class="modal" hidden><div class="panel"><span class="eyebrow">GEFECHT BEENDET</span><h2 id="resultTitle">Sieg.</h2><p id="resultReason"></p><div id="resultStats" class="result-stats"></div><div class="earned-xp"><strong id="earnedXp">Erfahrung wird gezählt …</strong><p id="xpBreakdown"></p><p id="unlockNotice"></p><span id="saveStatus" role="status"></span></div><button id="rematchButton" class="primary">NEUES GEFECHT <span>↗</span></button><button id="menuButton" class="outline">ZUR GARAGE</button><a href="../">Zur Spielesammlung</a></div></section>
+  <section id="pause" class="modal" hidden><div class="panel"><span class="eyebrow">GRENZPOSTEN 01</span><h2>Kurze Feuerpause.</h2><p id="pauseHint">Weiterfahren setzt das Spiel fort. Esc gibt die Maus frei und pausiert.</p><button id="resumeButton" class="primary">WEITERFAHREN <span>↗</span></button><label>Mausgeschwindigkeit <input id="sensitivity" type="range" min="0.4" max="2" step="0.1" value="1"></label><label><input id="sound" type="checkbox" checked> Sound aktiv</label><label><input id="shake" type="checkbox" checked> Rückstoß-Kamera</label><label>Grafik <select id="quality"><option value="high">Hoch</option><option value="medium">Mittel</option><option value="low">Niedrig · ohne Schatten</option></select></label><button id="controlsButton" class="outline">STEUERUNG ANZEIGEN</button><button id="retryMouseButton" class="outline" hidden>MAUSBINDUNG ERNEUT VERSUCHEN</button><button id="resetButton" class="outline">RUNDE NEU STARTEN</button><button id="garageButton" class="outline">RUNDE VERLASSEN · ZUR GARAGE</button><a id="externalBrowser" class="browser-link" href="./" target="_blank" rel="noopener" hidden>In einem separaten Browserfenster öffnen ↗</a><a href="/datenschutz" target="_blank" rel="noopener">Datenschutz</a></div></section>
+  <section id="result" class="modal" hidden><div class="panel"><span class="eyebrow">GEFECHT BEENDET</span><h2 id="resultTitle">Sieg.</h2><p id="resultReason"></p><div id="resultStats" class="result-stats"></div><div class="earned-xp"><strong id="earnedXp">Erfahrung wird gezählt …</strong><p id="xpBreakdown"></p><p id="unlockNotice"></p><span id="saveStatus" role="status"></span></div><button id="rematchButton" class="primary">NEUES GEFECHT <span>↗</span></button><button id="menuButton" class="outline">ZUR GARAGE</button></div></section>
   <section id="careerPanel" class="modal" role="dialog" aria-modal="true" aria-labelledby="careerTitle" hidden><div class="panel career-panel"><div class="career-heading"><span class="eyebrow">DEIN FAHRERPROFIL</span><button id="closeCareer" class="outline" aria-label="Profil schließen">✕</button></div><h2 id="careerTitle">Rekrut</h2><p id="careerProgress"></p><div class="career-progress"><i id="careerProgressBar"></i></div><div id="careerStats" class="career-stats"></div><div class="career-heading"><h3>Tarnungen</h3><span id="paintVehicle"></span></div><p class="cosmetic-note">Nur die Optik verändert sich. Beide Panzer bleiben sofort spielbar.</p><div id="careerPaints" class="career-paints"></div><p id="careerStatus" role="status"></p><div class="save-actions"><button id="exportSave" class="outline">SPIELSTAND EXPORTIEREN</button><button id="importSave" class="outline">SPIELSTAND IMPORTIEREN</button><input id="saveFile" type="file" accept="application/json,.json" hidden></div><div id="importPreview" class="import-preview" hidden><p id="importDetails"></p><button id="confirmImport" class="primary">SPIELSTAND ERSETZEN</button><button id="cancelImport" class="outline">ABBRECHEN</button></div><p class="local-note">Lokal in diesem Browser gespeichert. Exportiere eine Sicherung für andere Geräte oder Browser.</p></div></section>
   <noscript>Bitte aktiviere JavaScript, um Iron Horizon zu spielen.</noscript>
 </body>

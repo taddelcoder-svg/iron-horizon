@@ -1,42 +1,56 @@
 # Iron Horizon
 
-Lokales 3D-Panzerkampfspiel im Browser – Prototyp **0.5**. Zwei Karten, zwei Fahrzeuge, 3-gegen-3-Bot-Gefechte, Training und dauerhaftes Fahrerprofil. Alle Laufzeitdateien sind enthalten; keine Konten, CDNs oder Paketinstallation nötig.
+3D-Panzerkampfspiel im Browser – Prototyp **0.6**. Zwei Karten, zwei Fahrzeuge, 3-gegen-3-Gefechte gegen Bots, Training und ein dauerhaftes Fahrerprofil. Spielbar mit Maus und Tastatur oder per Touch auf Handy und Tablet. Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
+
+Teil der privaten Swimming-Lions-Spielesammlung für Familie und Freunde.
 
 ## Starten
 
 Mit installiertem Node.js im Repository-Ordner:
 
 ```sh
-node iron-horizon/serve.cjs
+npm start
 ```
 
-Danach [Iron Horizon öffnen](http://127.0.0.1:4177/iron-horizon/). Port 4177 muss frei sein. Der Server ist nur lokal erreichbar.
+Danach `http://localhost:10400/` öffnen (leitet auf `/iron-horizon/` weiter). Ohne `ZUGANG_PASSWORT` läuft der Server lokal ohne Passwort.
 
-WASD fährt, Maus zielt, linke Maustaste schießt, rechte Maustaste zoomt. Leertaste bremst, Q legt Rauch, R halten repariert Module und Esc pausiert.
+Für die Browser-Tests gibt es zusätzlich `node iron-horizon/serve.cjs`: derselbe Server, nur auf `127.0.0.1:4177`.
+
+## Steuerung
+
+- **Desktop:** WASD fährt, Maus zielt, linke Maustaste schießt, rechte Maustaste zoomt. Leertaste bremst, Q legt Rauch, R halten repariert Module und Esc pausiert.
+- **Touch (Querformat):** linker Daumen = Joystick zum Fahren, rechts wischen = zielen, Knöpfe für Feuer, Zoom, Rauch, Reparatur und Bremse. Das Spiel schaltet automatisch um, sobald du den Bildschirm berührst.
 
 ## Inhalt
 
 - Grenzposten und Steinbruch mit Kartenauswahl in der Garage.
 - Luchs und Keiler mit unterschiedlichen Kampf- und Fahrwerten.
-- Eroberungspunkt, Tickets, Bot-Gegner, Wiedereinstieg und Ergebnisanzeige.
-- Modulschäden, Reparatur, Rauch und fünf Trainingsziele je Karte.
+- Eroberungspunkt, Tickets, Wiedereinstieg und Ergebnisanzeige.
+- Bots mit Rollen: Punkt erobern, Flanken fahren, gesicherten Punkt aus Deckung überwachen, verletzt zurückziehen und nebeln.
+- Abpraller bei flachen Treffern, Kette, Motor und Turmantrieb als beschädigbare Module, Schadensschema im HUD.
+- Streuung: Im Stand schießt man genauer als in voller Fahrt.
 - Erfahrung, Ränge, Tarnungen sowie JSON-Import und -Export des Spielstands.
+- Grafikstufen Hoch/Mittel/Niedrig für schwächere Geräte.
 
-Ausführliche Regeln und Browser-Tests: [Spiel-Dokumentation](iron-horizon/README.md). Die [ursprüngliche Konzeptskizze](IRON-HORIZON-KONZEPT.md) beschreibt auch noch nicht umgesetzte Ideen; maßgeblich für den aktuellen Umfang ist die Spiel-Dokumentation.
+Ausführliche Regeln und Tests: [Spiel-Dokumentation](iron-horizon/README.md). Die Planung bis zur Version 1.0 steht im [Spielkonzept](IRON-HORIZON-KONZEPT.md).
+
+## Veröffentlichen (Render)
+
+Das Repository enthält ein `Dockerfile` und ein Render-Blueprint (`render.yaml`, Dienstname `iron-horizon`). Auf Render entweder das Blueprint verbinden oder einen **Web Service** vom Typ Docker aus diesem Repository anlegen und die Umgebungsvariable `ZUGANG_PASSWORT` setzen. Ohne Passwort bleibt die Seite auf Render gesperrt. `/datenschutz` und `/healthz` sind ohne Passwort erreichbar.
+
+Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, keine Serverdateien) und speichert nichts.
 
 ## Tests
 
 ```sh
-node --test iron-horizon/battle.test.cjs iron-horizon/systems.test.cjs iron-horizon/career.test.cjs iron-horizon/maps.test.cjs
+npm test
 ```
 
-Die zusätzlichen Browser-Tests benötigen Playwright, installiertes Chrome und den laufenden lokalen Server.
+Die zusätzlichen Browser-Tests (`*-test.cjs`) benötigen Playwright, installiertes Chrome und den laufenden Server von `serve.cjs`.
 
-## Herkunft und Drittanbieter
-
-Eigenständiger Export aus der Swimming-Lions-Spielesammlung. Die Verzeichnisstruktur bleibt für vorhandene Pfade und Tests erhalten; die Startseite enthält nur Iron Horizon.
+## Drittanbieter
 
 - Three.js: [MIT-Lizenz](iron-horizon/vendor/LICENSE-three.txt).
 - Bricolage Grotesque: [SIL Open Font License](fonts/OFL-Bricolage.txt).
 
-Fahrerprofil und Einstellungen liegen ausschließlich im lokalen Browser-Speicher und werden nicht mit Git übertragen.
+Fahrerprofil und Einstellungen liegen ausschließlich im lokalen Browser-Speicher und werden nicht übertragen.

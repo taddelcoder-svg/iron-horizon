@@ -53,7 +53,8 @@ const path = require('node:path');
     await page.waitForFunction(() => window.ironHorizon.getState().targets.some(t => t.team === 'red' && t.visible), null, { timeout: 35000 });
     await page.keyboard.press('KeyQ'); await page.waitForTimeout(600);
     assert.ok((await state()).targets.filter(t => t.team === 'red').every(t => !t.visible), 'Smoke hides enemies from player LOS and minimap');
-    await page.waitForFunction(() => window.ironHorizon.getState().smokeClouds === 0, null, { timeout: 15000 });
+    // Bots may lay their own smoke now; only the player's cloud must expire.
+    await page.waitForFunction(() => window.ironHorizon.getState().ownSmoke === 0, null, { timeout: 15000 });
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ status: 'PASS', checks: ['vehicle selection', 'profile physics', 'smoke budget/cooldown', 'smoke LOS', 'smoke expiry', 'module immobility', 'repair interruption/completion', 'garage reset', 'compact layout'], screenshots: output }));
   } finally { await browser.close(); }

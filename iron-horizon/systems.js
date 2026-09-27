@@ -1,25 +1,31 @@
-/* Vehicle profiles and deterministic module/smoke rules, shared by game and tests. */
+/* Vehicle profiles and deterministic module/smoke/armour rules, shared by game and tests. */
 (function (scope) {
   'use strict';
   const profiles = Object.freeze({
-    luchs: Object.freeze({ id: 'luchs', name: 'LUCHS', version: 'MK. I', role: 'LEICHTER PANZER · AUFKLÄRUNG', speed: 52 / 3.6, reverse: 5.5, acceleration: 5.3, turn: .82, turret: 1.15, reload: 3, calibre: 40, power: 1, front: 1, scale: 1, note: 'Leicht auf den Ketten. Schnell an der Flanke.' }),
-    keiler: Object.freeze({ id: 'keiler', name: 'KEILER', version: 'MK. II', role: 'MITTLERER PANZER · FEUERUNTERSTÜTZUNG', speed: 36 / 3.6, reverse: 4, acceleration: 3.4, turn: .6, turret: .7, reload: 5, calibre: 75, power: 1.45, front: .7, scale: 1.12, note: 'Starke Front. Schweres Geschütz. Sichere deine Flanken.' })
+    luchs: Object.freeze({ id: 'luchs', name: 'LUCHS', version: 'MK. I', role: 'LEICHTER PANZER · AUFKLÄRUNG', speed: 52 / 3.6, reverse: 5.5, acceleration: 5.3, turn: .82, turret: 1.15, reload: 3, calibre: 40, power: 1, front: 1, scale: 1, spread: 1, note: 'Leicht auf den Ketten. Schnell an der Flanke.' }),
+    keiler: Object.freeze({ id: 'keiler', name: 'KEILER', version: 'MK. II', role: 'MITTLERER PANZER · FEUERUNTERSTÜTZUNG', speed: 36 / 3.6, reverse: 4, acceleration: 3.4, turn: .6, turret: .7, reload: 5, calibre: 75, power: 1.45, front: .7, scale: 1.12, spread: 1.25, note: 'Starke Front. Schweres Geschütz. Sichere deine Flanken.' })
   });
-  function fresh() { return { tracks: 100, engine: 100, repair: 0, smokeCharges: 2, smokeCooldown: 0 }; }
-  function damaged(state) { return state.tracks === 0 || state.engine === 0; }
+  const REPAIR_TIME = 6;
+  // Shots hitting armour flatter than this angle to the surface normal bounce off.
+  const RICOCHET_ANGLE = 72;
+  function fresh() { return { tracks: 100, engine: 100, turret: 100, repair: 0, smokeCharges: 2, smokeCooldown: 0 }; }
+  function damaged(state) { return state.tracks === 0 || state.engine === 0 || state.turret === 0; }
   function mobility(state) { return state.tracks === 0 ? 0 : state.engine === 0 ? .4 : 1; }
+  function turretRate(state) { return state.turret === 0 ? .35 : 1; }
+  // Simplified local hit zones (vehicle space, metres, -z is the front).
   function hitModule(state, point) {
     state.repair = 0;
     if (Math.abs(point.x) > 1.4 && point.y < 1.5) { state.tracks = 0; return 'tracks'; }
     if (point.z > 1 && point.y < 1.9) { state.engine = 0; return 'engine'; }
+    if (point.y >= 1.75 && point.y < 2.1 && Math.abs(point.x) < 1.4 && point.z > -1.6 && point.z < 1.2) { state.turret = 0; return 'turret'; }
     return null;
   }
   function repair(state, dt, held, moving, alive = true) {
     state.smokeCooldown = Math.max(0, state.smokeCooldown - dt);
     if (!held || moving || !alive || !damaged(state)) { state.repair = 0; return false; }
     state.repair += dt;
-    if (state.repair + 1e-8 < 6) return false;
-    state.tracks = state.engine = 100; state.repair = 0; return true;
+    if (state.repair + 1e-8 < REPAIR_TIME) return false;
+    state.tracks = state.engine = state.turret = 100; state.repair = 0; return true;
   }
   function useSmoke(state) {
     if (state.smokeCharges <= 0 || state.smokeCooldown > 0) return false;
@@ -34,6 +40,19 @@
       return Math.hypot(from.x + dx * t - cloud.x, from.y + dy * t - cloud.y, from.z + dz * t - cloud.z) < cloud.radius;
     });
   }
-  const api = { profiles, fresh, damaged, mobility, hitModule, repair, useSmoke, smokeBlocks };
+  // cosine = |cos| between the shell path and the struck surface normal.
+  function ricochet(cosine) { return cosine < Math.cos(RICOCHET_ANGLE * Math.PI / 180); }
+  // incidence: +1 straight into the front, -1 straight into the rear.
+  function side(incidence) { return incidence > .55 ? 'front' : incidence < -.55 ? 'rear' : 'side'; }
+  function damage(incidence, attacker, victim, module) {
+    const facing = side(incidence);
+    const base = facing === 'front' ? 24 * victim.front : facing === 'rear' ? 50 : 38;
+    return Math.round(base * attacker.power * (module === 'tracks' ? .45 : 1));
+  }
+  // Gun dispersion in radians: accurate when standing, loose while driving or turning the hull.
+  function spread(profile, speedRatio, turning = 0) {
+    return (.0022 + .016 * Math.min(1, Math.abs(speedRatio)) + .006 * Math.min(1, Math.abs(turning))) * (profile.spread || 1);
+  }
+  const api = { profiles, REPAIR_TIME, RICOCHET_ANGLE, fresh, damaged, mobility, turretRate, hitModule, repair, useSmoke, smokeBlocks, ricochet, side, damage, spread };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else scope.IronSystems = api;
 })(typeof window !== 'undefined' ? window : globalThis);

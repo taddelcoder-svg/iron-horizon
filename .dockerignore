@@ -1,0 +1,8 @@
+.git
+node_modules
+**/*.test.cjs
+**/*-test.cjs
+*.md
+**/*.md
+.env
+.env.*

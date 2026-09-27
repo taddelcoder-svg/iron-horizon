@@ -1,0 +1,76 @@
+/* 0.6: damage schema, dispersion ring, briefing, touch controls and the compact phone HUD. */
+.spread-ring{position:fixed;left:50%;top:50%;width:26px;height:26px;border:1px dashed #ffffff5c;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;transition:width .12s,height .12s}
+.telemetry .module-status{align-items:center;flex-wrap:wrap}
+.damage-schema{width:22px;height:31px;flex:none}
+.damage-schema rect,.damage-schema circle{fill:#a1c39040;stroke:#b1c5a0;stroke-width:1.2}
+.damage-schema .hull{fill:#ffffff0d;stroke:#ffffff40}
+.damage-schema .broken{fill:#ffae8699;stroke:#ffae86}
+.respawn small{display:block;margin-top:12px;font:10px monospace;letter-spacing:1px;color:#d9ccaa}
+.respawn small:empty{display:none}
+.menu-foot b{font-weight:400}.menu-foot a{color:inherit;text-decoration:none;border-bottom:1px solid #ffffff40}
+.panel select{background:#13201a;color:inherit;border:1px solid #ffffff45;padding:7px 9px;font:12px Bricolage,Arial,sans-serif}
+
+.tutorial{position:fixed;right:4%;top:96px;z-index:5;width:320px;max-width:calc(100vw - 32px);padding:14px 18px 16px;background:#15201aee;border:1px solid #ffffff30;border-left:2px solid var(--orange)}
+.tutorial .outline{width:auto;margin:0;padding:6px 9px}
+.tutorial p{margin:10px 0 0;font-size:12px;line-height:1.55;color:#efe7cf}
+.tutorial ul{margin:10px 0 0;padding-left:16px;font-size:12px;line-height:1.6;color:#d3dbc7}
+.tutorial b{color:var(--orange);font-weight:600}
+
+/* Touch layer: sits above the 3D view and HUD, below the pause button and dialogs. */
+.touch-layer{display:none;position:fixed;inset:0;z-index:3;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.touch-mode.playing .touch-layer{display:block}
+.stick-base{position:absolute;left:30px;bottom:30px;width:124px;height:124px;border-radius:50%;border:2px solid #ffffff45;background:#15201a55;display:grid;place-items:center}
+.stick-base i{width:54px;height:54px;border-radius:50%;background:#ef9c51d9;box-shadow:0 2px 10px #0008}
+.stick-base span{position:absolute;bottom:-17px;left:0;right:0;text-align:center;font:9px monospace;letter-spacing:2px;color:#ffffffa6}
+.t-btn{position:absolute;display:grid;place-content:center;border-radius:50%;border:2px solid #ffffff55;background:#15201ab3;color:#f5f0df;font:700 10px monospace;letter-spacing:1px;text-align:center;line-height:1.15;text-shadow:0 1px 3px #000}
+.t-btn.held{background:#ef9c51;color:#1b211b;border-color:#ef9c51;text-shadow:none}
+.t-fire{right:26px;bottom:28px;width:98px;height:98px;font-size:13px;border-color:var(--orange);background:conic-gradient(#ef9c51c0 var(--progress,360deg),#15201ab3 0)}
+.t-fire.loading{color:#f5f0dfb0}
+.t-zoom{right:138px;bottom:24px;width:62px;height:62px}
+.t-zoom.on{border-color:var(--orange);color:var(--orange)}
+.t-smoke{right:24px;bottom:142px;width:62px;height:62px}
+.t-smoke b{display:block;font-size:12px;color:var(--orange)}
+.t-repair{right:112px;bottom:108px;width:62px;height:62px;font-size:8px;background:conic-gradient(#a1c390b0 var(--progress,0deg),#15201ab3 0)}
+.t-brake{left:176px;bottom:30px;width:60px;height:46px;border-radius:10px;font-size:8px}
+.rotate-hint{display:none}
+@media(orientation:portrait){.touch-mode.playing .rotate-hint{display:block;position:fixed;left:50%;top:92px;transform:translateX(-50%);z-index:6;width:min(320px,86vw);padding:10px 14px;background:#15201aee;border:1px solid var(--orange);font-size:12px;line-height:1.5;text-align:center;pointer-events:none}}
+
+/* Compact HUD for touch play: keep the corners free for thumbs. */
+.touch-mode .controls,.touch-mode .equipment,.touch-mode .compass,.touch-mode.playing .brand{display:none}
+.touch-mode .topbar{height:auto;padding:8px;background:none}
+.touch-mode #pauseButton{position:fixed;top:8px;right:8px;padding:10px 12px;background:#15201ad9}
+.touch-mode .objective{top:8px;left:8px;padding:8px 12px;gap:4px;max-width:210px}
+.touch-mode .objective .eyebrow{display:none}.touch-mode .objective b{font-size:12px}
+.touch-mode .match-hud{top:8px;padding:5px 14px;gap:14px}.touch-mode .match-hud>b{font-size:20px}.touch-mode .match-hud strong{font-size:14px;margin-top:2px}
+.touch-mode .map{top:54px;right:8px;bottom:auto;padding:5px}.touch-mode .map canvas{width:92px;height:92px}.touch-mode .map>span{display:none}
+.touch-mode .telemetry{left:8px;top:92px;bottom:auto;padding:8px 10px;min-width:0;width:168px}
+.touch-mode .telemetry>.eyebrow{display:none}.touch-mode .telemetry strong{font-size:26px}
+.touch-mode .telemetry .health-track{margin:6px 0 7px}
+.touch-mode .telemetry .module-status{margin-top:6px;padding-top:6px;gap:6px;flex-direction:row}
+.touch-mode .telemetry .module-status span{display:none}
+.touch-mode .ammo{bottom:8px;width:210px;padding:8px 12px}.touch-mode .ammo .eyebrow{font-size:8px;letter-spacing:1px}.touch-mode .ammo>b{margin:6px 0;font-size:10px}
+.touch-mode .notice{top:24%;font-size:11px}
+.touch-mode .respawn{top:26%}
+.touch-mode .tutorial{left:50%;right:auto;top:48px;transform:translateX(-50%);width:min(430px,62vw)}
+.touch-mode .tutorial ul{columns:2;column-gap:22px}
+@media(max-height:500px){.touch-mode .telemetry{top:76px}.touch-mode .telemetry .health-track{margin:4px 0}.touch-mode .tutorial ul{font-size:11px;line-height:1.45}}
+@media(max-width:700px){.touch-mode .tutorial{width:min(430px,92vw)}.touch-mode .tutorial ul{columns:1}}
+
+/* Desktop: equipment sits beside the gun panel so both stay below the own tank. */
+.ammo{bottom:64px;padding:14px 18px}.ammo>b{margin:9px 0}
+.equipment{bottom:64px;left:calc(50% + 150px);transform:none;width:220px}
+@media(max-width:1180px){.equipment{left:auto;right:4%;bottom:290px;width:190px}}
+@media(max-width:800px){.ammo{bottom:72px}.equipment{top:150px;bottom:auto;right:3%;width:170px}.playing .compass{display:none}}
+.notice{top:29%}
+
+/* Phones in landscape: compact garage so the start button is visible without scrolling. */
+@media(max-height:500px){
+  .topbar{height:54px;padding:0 16px}.brand-icon{width:30px;height:34px;font-size:14px}.career-button{padding:7px 10px}
+  .intro{top:58px;bottom:8px;left:16px;width:min(420px,54vw);max-width:none;padding-right:8px}
+  .intro .eyebrow,.mission,.map-picker label,.map-picker p,.bottom-caption,.vehicle-note{display:none}
+  .intro h1{font-size:28px;letter-spacing:-1px;margin:4px 0 10px}
+  .map-picker,.vehicle-picker{margin-bottom:8px}.vehicle-picker button{padding:8px 10px}
+  .intro .primary{padding:13px 18px;min-width:0;width:100%}.training-link{padding-top:6px}.intro .menu-foot{margin-top:6px}
+  .vehicle-card{top:58px;bottom:auto;right:16px;width:min(300px,40vw);padding:12px 14px}
+  .vehicle-card h2{font-size:22px;margin:8px 0 2px}.stats{padding:10px 0}.stats b{font-size:20px}.paint-swatches{margin-top:10px}
+}
