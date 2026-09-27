@@ -1,8 +1,12 @@
 # Iron Horizon
 
-3D-Panzerkampfspiel im Browser – Prototyp **0.7**. Zwei Karten, zwei Fahrzeuge, 3-gegen-3-Gefechte gegen Bots, Training und ein dauerhaftes Fahrerprofil. Spielbar mit Maus und Tastatur oder per Touch auf Handy und Tablet. Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
+3D-Panzerkampfspiel im Browser, **Version 1.0**:
 
-Teil der privaten Swimming-Lions-Spielesammlung für Familie und Freunde.
+- **Inhalt:** drei Karten (eine davon mit Hügeln und Flussbett), drei Panzer, die Modi Vorherrschaft und Durchbruch, drei Gegnerstärken, Training und ein Fahrerprofil mit Rängen, Tarnungen und Auszeichnungen.
+- **Steuerung:** Maus und Tastatur oder Touch auf Handy und Tablet.
+- **Technik:** Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
+
+Teil der privaten Swimming-Lions-Spielesammlung für Familie und Freunde: https://iron-horizon.onrender.com (passwortgeschützt).
 
 ## Starten
 
@@ -14,30 +18,31 @@ npm start
 
 Danach `http://localhost:10400/` öffnen (leitet auf `/iron-horizon/` weiter). Ohne `ZUGANG_PASSWORT` läuft der Server lokal ohne Passwort.
 
-Für die Browser-Tests gibt es zusätzlich `node iron-horizon/serve.cjs`: derselbe Server, nur auf `127.0.0.1:4177`.
-
 ## Steuerung
 
-- **Desktop:** WASD fährt, Maus zielt, linke Maustaste schießt, rechte Maustaste zoomt. Leertaste bremst, Q legt Rauch, R halten repariert Module und Esc pausiert.
-- **Touch (Querformat):** linker Daumen = Joystick zum Fahren, rechts wischen = zielen, Knöpfe für Feuer, Zoom, Rauch, Reparatur und Bremse. Das Spiel schaltet automatisch um, sobald du den Bildschirm berührst.
+- **Desktop:** WASD fährt, die Maus zielt, die linke Maustaste schießt, die rechte zoomt. Leertaste bremst, Q legt Rauch, R halten repariert Module und Esc pausiert.
+- **Touch (Querformat):** Der linke Daumen fährt mit dem Joystick, rechts wischen zielt. Dazu kommen Knöpfe für Feuer, Zoom, Rauch, Reparatur und Bremse.
 
 ## Inhalt
 
-- Grenzposten und Steinbruch mit Kartenauswahl in der Garage.
-- Luchs und Keiler mit unterschiedlichen Kampf- und Fahrwerten.
-- Eroberungspunkt, Tickets, Wiedereinstieg und Ergebnisanzeige.
-- Bots mit Rollen: Punkt erobern, Flanken fahren, gesicherten Punkt aus Deckung überwachen, verletzt zurückziehen und nebeln. Drei Gegnerstärken: Rekrut, Veteran, Ass (+25 % Erfahrung).
-- Abpraller bei flachen Treffern, Kette, Motor und Turmantrieb als beschädigbare Module, Schadensschema im HUD.
-- Streuung: Im Stand schießt man genauer als in voller Fahrt.
-- Erfahrung, Ränge, Tarnungen sowie JSON-Import und -Export des Spielstands.
-- Treffermarker und Funken, Kettenklappern, Schlüsselmoment mit Tipp im Ergebnis.
-- Grafikstufen Hoch/Mittel/Niedrig, Y-Achse umkehren, Bildratenanzeige.
+- **Karten:** Grenzposten, Steinbruch und Flusstal (Hügelkamm, trockenes Flussbett, Steinbrücke).
+- **Panzer:**
+  - Luchs: schnell.
+  - Keiler: starke Front.
+  - Dachs: Jagdpanzer ohne Turm, im Gefecht ab Rang Frontkämpfer.
+- **Modi:**
+  - Vorherrschaft: Punkt A halten.
+  - Durchbruch: erst A, dann B erobern oder verteidigen, die Seite ist frei wählbar.
+- **Bots** erobern, flanken, überwachen, ziehen sich zurück und legen Rauch. Drei Gegnerstärken: Rekrut, Veteran, Ass (+25 % Erfahrung); deine Verbündeten kämpfen immer wie Veteranen.
+- **Kampf:** Abpraller, Module (Kette, Motor, Turm- bzw. Richtantrieb), Streuung, Treffermarker, Schlüsselmoment im Ergebnis.
+- **Fortschritt:** Erfahrung, fünf Ränge, sechs Tarnungen, acht Auszeichnungen, JSON-Export und -Import.
+- Grafikstufen Hoch/Mittel/Niedrig (bei zu niedriger Bildrate senkt das Spiel sie selbst), Y-Achse umkehren, Bildratenanzeige. Das Spiel hat keinen Ton.
 
-Ausführliche Regeln und Tests: [Spiel-Dokumentation](iron-horizon/README.md). Die Planung bis zur Version 1.0 steht im [Spielkonzept](IRON-HORIZON-KONZEPT.md).
+Regeln, Zahlen und Tests: [Spiel-Dokumentation](iron-horizon/README.md). Gestaltung, Balance und Ausblick: [Spielkonzept](IRON-HORIZON-KONZEPT.md).
 
 ## Veröffentlichen (Render)
 
-Das Repository enthält ein `Dockerfile` und ein Render-Blueprint (`render.yaml`, Dienstname `iron-horizon`). Auf Render entweder das Blueprint verbinden oder einen **Web Service** vom Typ Docker aus diesem Repository anlegen und die Umgebungsvariable `ZUGANG_PASSWORT` setzen. Ohne Passwort bleibt die Seite auf Render gesperrt. `/datenschutz` und `/healthz` sind ohne Passwort erreichbar.
+Das Repository enthält ein `Dockerfile` und ein Render-Blueprint (`render.yaml`, Dienstname `iron-horizon`). Auf Render entweder das Blueprint verbinden oder einen **Web Service** vom Typ Docker anlegen und die Umgebungsvariable `ZUGANG_PASSWORT` setzen. Ohne Passwort bleibt die Seite auf Render gesperrt. `/datenschutz` und `/healthz` sind ohne Passwort erreichbar.
 
 Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, keine Serverdateien) und speichert nichts.
 
@@ -47,7 +52,7 @@ Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, 
 npm test
 ```
 
-Die zusätzlichen Browser-Tests (`*-test.cjs`) benötigen Playwright, installiertes Chrome und den laufenden Server von `serve.cjs`. Das Balance-Turnier (`node iron-horizon/balance-tournament.cjs --rounds 40`) lässt 320 Bot-Gefechte laufen und prüft die Balance-Regel aus dem Konzept.
+Die Browser-Tests (`*-test.cjs`) und das Balance-Turnier (`balance-tournament.cjs`) benötigen Playwright, installiertes Chrome und den laufenden Server von `node iron-horizon/serve.cjs`.
 
 ## Drittanbieter
 

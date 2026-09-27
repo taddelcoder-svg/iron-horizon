@@ -3,8 +3,11 @@
   'use strict';
   const profiles = Object.freeze({
     luchs: Object.freeze({ id: 'luchs', name: 'LUCHS', version: 'MK. I', role: 'LEICHTER PANZER · AUFKLÄRUNG', speed: 52 / 3.6, reverse: 5.5, acceleration: 5.3, turn: .82, turret: 1.15, reload: 3, calibre: 40, power: 1, front: 1, scale: 1, spread: 1, note: 'Leicht auf den Ketten. Schnell an der Flanke.' }),
-    keiler: Object.freeze({ id: 'keiler', name: 'KEILER', version: 'MK. II', role: 'MITTLERER PANZER · FEUERUNTERSTÜTZUNG', speed: 36 / 3.6, reverse: 4, acceleration: 3.4, turn: .6, turret: .7, reload: 5, calibre: 75, power: 1.45, front: .7, scale: 1.12, spread: 1.25, note: 'Starke Front. Schweres Geschütz. Sichere deine Flanken.' })
+    keiler: Object.freeze({ id: 'keiler', name: 'KEILER', version: 'MK. II', role: 'MITTLERER PANZER · FEUERUNTERSTÜTZUNG', speed: 36 / 3.6, reverse: 4, acceleration: 3.4, turn: .6, turret: .7, reload: 5, calibre: 75, power: 1.45, front: .7, scale: 1.12, spread: 1.25, note: 'Starke Front. Schweres Geschütz. Sichere deine Flanken.' }),
+    // Turretless tank destroyer: the gun only traverses ±12° (traverse, rad) inside the hull.
+    dachs: Object.freeze({ id: 'dachs', name: 'DACHS', version: 'MK. III', role: 'JAGDPANZER · FERNKAMPF', speed: 34 / 3.6, reverse: 16 / 3.6, acceleration: 3.9, turn: .72, turret: .9, traverse: 12 * Math.PI / 180, reload: 6.5, calibre: 88, power: 1.9, front: .59, scale: 1.08, spread: 1.1, note: 'Kein Turm: Die Kanone schwenkt nur ±12°. Die Wanne dreht sich zum Ziel, wenn du stillstehst.' })
   });
+  const VEHICLES = Object.freeze(Object.keys(profiles));
   const REPAIR_TIME = 6;
   // Shots hitting armour flatter than this angle to the surface normal bounce off.
   const RICOCHET_ANGLE = 72;
@@ -13,11 +16,14 @@
   function mobility(state) { return state.tracks === 0 ? 0 : state.engine === 0 ? .4 : 1; }
   function turretRate(state) { return state.turret === 0 ? .35 : 1; }
   // Simplified local hit zones (vehicle space, metres, -z is the front).
-  function hitModule(state, point) {
+  // Turretless vehicles only have the gun mantlet around the barrel as their traverse drive
+  // (about a tenth of the front, like the turret ring of the other tanks).
+  function hitModule(state, point, profile = null) {
     state.repair = 0;
     if (Math.abs(point.x) > 1.4 && point.y < 1.5) { state.tracks = 0; return 'tracks'; }
     if (point.z > 1 && point.y < 1.9) { state.engine = 0; return 'engine'; }
-    if (point.y >= 1.75 && point.y < 2.1 && Math.abs(point.x) < 1.4 && point.z > -1.6 && point.z < 1.2) { state.turret = 0; return 'turret'; }
+    const drive = profile?.traverse ? Math.abs(point.x) < .45 && point.y > 1.95 && point.y < 2.45 && point.z < -2.3 : point.y >= 1.75 && point.y < 2.1 && Math.abs(point.x) < 1.4 && point.z > -1.6 && point.z < 1.2;
+    if (drive) { state.turret = 0; return 'turret'; }
     return null;
   }
   function repair(state, dt, held, moving, alive = true) {
@@ -53,6 +59,6 @@
   function spread(profile, speedRatio, turning = 0) {
     return (.0022 + .016 * Math.min(1, Math.abs(speedRatio)) + .006 * Math.min(1, Math.abs(turning))) * (profile.spread || 1);
   }
-  const api = { profiles, REPAIR_TIME, RICOCHET_ANGLE, fresh, damaged, mobility, turretRate, hitModule, repair, useSmoke, smokeBlocks, ricochet, side, damage, spread };
+  const api = { profiles, VEHICLES, REPAIR_TIME, RICOCHET_ANGLE, fresh, damaged, mobility, turretRate, hitModule, repair, useSmoke, smokeBlocks, ricochet, side, damage, spread };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else scope.IronSystems = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -47,6 +47,7 @@ test('difficulty levels get sharper from Rekrut to Ass', () => {
   const { recruit, veteran, ace } = difficulties;
   assert.ok(recruit.reaction[0] > veteran.reaction[0] && veteran.reaction[0] > ace.reaction[0]);
   assert.ok(recruit.error > veteran.error && veteran.error > ace.error);
+  assert.ok(recruit.reload > veteran.reload && veteran.reload > ace.reload, 'reload time separates the levels');
   assert.equal(recruit.flank, false); assert.equal(recruit.smoke, false); assert.equal(ace.lowAim, true);
 });
 test('key moment prefers kills that relieved the point, then solo captures', () => {
@@ -62,4 +63,35 @@ test('the tip names the most useful lesson', () => {
   assert.match(keyMoment([{ type: 'death', where: 'HECK' }, { type: 'death', where: 'SEITE' }], {}, 'red').tip, /2× von der Seite/);
   assert.match(keyMoment([], { captureSeconds: 3 }, 'red').tip, /Punkt A entscheidet/);
   assert.equal(keyMoment([], { captureSeconds: 80, kills: 2 }, 'blue').tip, null);
+});
+const { Breakthrough, freeNear, pointLayout } = require('./battle.js');
+test('Durchbruch: attackers take A, gain time, then B; defenders cannot recapture', () => {
+  const b = new Breakthrough('blue'); assert.equal(b.tickets.red, Infinity);
+  advance(b, 11, 1, 0); assert.equal(b.stage, 1); assert.ok(b.time > 300, 'captured point adds time');
+  const before = b.progress; advance(b, 4, 1, 1); assert.equal(b.contested, true); assert.equal(b.progress, before, 'contested points freeze');
+  advance(b, 5, 1, 0); advance(b, 4, 0, 0); assert.ok(b.progress > 0 && b.progress < .5, 'progress drains slowly when attackers leave');
+  advance(b, 10, 1, 0); assert.equal(b.result, 'blue');
+});
+test('Durchbruch: outnumbering defenders captures, only more slowly', () => {
+  const held = new Breakthrough('blue'); advance(held, 20, 1, 2); assert.equal(held.progress, 0); assert.equal(held.contested, true);
+  const even = new Breakthrough('red'); advance(even, 20, 2, 2); assert.equal(even.progress, 0);
+  const lone = new Breakthrough('blue'); advance(lone, 20.1, 2, 1); const two = new Breakthrough('blue'); advance(two, 20, 3, 2); assert.equal(two.progress, 0, '3 against 2 is not enough'); assert.ok(lone.progress > .6 && lone.stage === 0); advance(lone, 10, 2, 1); assert.equal(lone.stage, 1);
+});
+test('Durchbruch: defenders win on time or when the attackers run out of tickets', () => {
+  const timed = new Breakthrough('red'); advance(timed, 301, 0, 0); assert.equal(timed.result, 'blue');
+  const broke = new Breakthrough('blue'), losses = Breakthrough.TICKETS / 5; assert.equal(broke.tickets.blue, 100);
+  for (let i = 1; i < losses; i++) broke.lose('blue'); assert.equal(broke.result, null); broke.lose('blue'); assert.equal(broke.result, 'red');
+  const defenders = new Breakthrough('blue'); defenders.lose('red', 500); assert.equal(defenders.result, null); assert.equal(defenders.tickets.red, Infinity);
+});
+test('the path grid can be laid through any point, so it is symmetric around that point', () => {
+  const { gridShift } = require('./battle.js');
+  assert.deepEqual(gridShift(6, 136, null), { x: 0, z: 0 }); assert.deepEqual(gridShift(6, 136, { x: 24, z: -4 }), { x: 4, z: 0 });
+  const path = findPath({ x: 0, z: 40 }, { x: 24, z: -4 }, () => false, 6, 136, { x: 24, z: -4 });
+  const last = path[path.length - 1]; assert.deepEqual([last.x, last.z], [24, -4]);
+  assert.ok(path.every(p => (p.x - 24) % 6 === 0 && (p.z + 4) % 6 === 0));
+});
+test('generated objective positions are pushed out of obstacles', () => {
+  const wall = (x, z) => Math.abs(x) < 5 && Math.abs(z) < 5;
+  const [x, z] = freeNear(0, 0, wall); assert.equal(wall(x, z), false); assert.ok(Math.hypot(x, z) < 10);
+  const layout = pointLayout({ x: 0, z: -10 }, 1); assert.ok(layout.slots.every(([, sz]) => sz > -10)); assert.ok(layout.holds.every(([, hz]) => hz > -10));
 });

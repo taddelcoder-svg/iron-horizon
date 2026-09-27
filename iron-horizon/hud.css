@@ -88,3 +88,23 @@
 .key-moment p{margin:8px 0 0;color:#efe7cf!important;font-size:13px;line-height:1.5}
 .key-moment .key-tip{color:#c6d9ac!important;font-size:12px}
 @media(max-height:500px){.difficulty-picker{display:flex;gap:8px;align-items:center}.difficulty-picker select{flex:1}}
+
+/* 1.0: third vehicle, mode picker, awards. */
+.vehicle-picker{max-width:420px}.vehicle-picker button{min-width:0}.vehicle-picker span{line-height:1.35}
+.career-awards{list-style:none;margin:0 0 6px;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.career-awards li{padding:9px;border:1px solid #ffffff25;background:#101c15;opacity:.55}
+.career-awards li.earned{opacity:1;border-color:var(--orange);background:#c3893918}
+.career-awards b{display:block;font:10px monospace;letter-spacing:.5px;color:#efe0bd}.career-awards li.earned b{color:var(--orange)}
+.career-awards span{display:block;font-size:9px;line-height:1.4;color:#b3bca6;margin-top:5px}
+@media(max-width:540px){.career-awards{grid-template-columns:repeat(2,1fr)}}
+@media(max-height:500px){.vehicle-picker span{display:none}}
+.picker-row{display:flex;gap:8px;max-width:370px}.picker-row .map-picker{flex:1;min-width:0;margin-bottom:6px}
+.picker-note{font-size:10px;line-height:1.5;color:#acb9a2;margin:0 0 12px;max-width:370px}
+@media(max-height:760px){.picker-note{display:none}.picker-row .map-picker{margin-bottom:8px}}
+@media(max-height:500px){.picker-row .map-picker label{display:none}}
+/* Olympiade */
+.olymp-card{max-width:370px;margin:0 0 14px;padding:14px 16px;border:1px solid var(--orange);background:#15201ad9;font-size:11px;line-height:1.6;color:#d6ddca}
+.olymp-card b{display:block;font-size:14px;color:var(--orange);margin-bottom:4px}
+.olymp-card small{display:block;font:9px monospace;letter-spacing:1px;color:#acb9a2;margin-top:6px}
+.olymp-result{border-top:1px solid #ffffff25;padding-top:14px;margin-top:4px}
+.olymp-result strong{font-size:25px;color:var(--orange)}

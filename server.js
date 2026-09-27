@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zugang = require('./zugang')({ titel: 'Iron Horizon' });
+const olymp = require('./olymp')({ spiel: 'ironhorizon' });
 
 const PORT = Number(process.env.PORT) || 10400;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -34,12 +35,45 @@ function senden(res, datei, cache){
   });
 }
 
+/* Olympiade: Die Gefechts-Challenge läuft im Browser. Der meldet hier „bin da“ und am Ende
+   seine Gefechtswerte; die Punktzahl rechnet der Server aus und schickt sie an die Olympiade.
+   Pro Ticket zählt nur die erste Meldung (ein Versuch). */
+const olympGemeldet = new Set();
+function olympPunkte(e) {
+  const zahl = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+  const kills = zahl(e.kills, 60), hits = zahl(e.hits, 400), deaths = zahl(e.deaths, 60), sekunden = zahl(e.captureSeconds, 1800);
+  const sieg = e.result === 'blue', unentschieden = e.result === 'draw';
+  const punkte = Math.max(0, (sieg ? 1000 : unentschieden ? 400 : 0) + kills * 300 + hits * 50 + sekunden * 5 - deaths * 150);
+  const teile = [sieg ? 'Sieg' : unentschieden ? 'Unentschieden' : 'Niederlage', `${kills} ${kills === 1 ? 'Abschuss' : 'Abschüsse'}`];
+  return { punkte, text: `${punkte.toLocaleString('de-DE')} Punkte · ${teile.join(' · ')}` };
+}
+function olympAnfrage(req, res) {
+  let d = '';
+  req.on('data', c => { d += c; if (d.length > 8000) req.destroy(); });
+  req.on('end', () => {
+    const antwort = (status, daten) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(daten)); };
+    let m;
+    try { m = JSON.parse(d); } catch (_) { return antwort(400, { fehler: 'JSON' }); }
+    const t = olymp.ticketPruefen(m && m.ticket);
+    if (!t) return antwort(403, { fehler: 'Das Olympia-Ticket ist ungültig oder abgelaufen.' });
+    const schluessel = t.l + ':' + t.s;
+    if (m.art === 'da') { olymp.da(t, t.s); return antwort(200, { ok: true, schonGespielt: olympGemeldet.has(schluessel) }); }
+    if (m.art !== 'ergebnis' || !m.werte || typeof m.werte !== 'object') return antwort(400, { fehler: 'Meldung unvollständig' });
+    const w = olympPunkte(m.werte);
+    if (olympGemeldet.has(schluessel)) return antwort(409, { fehler: 'Dein Versuch ist schon gewertet.', ...w });
+    olympGemeldet.add(schluessel);
+    olymp.wertMelden(t, t.s, w.punkte, w.text);
+    antwort(200, { ok: true, ...w });
+  });
+}
+
 const server = http.createServer((req, res) => {
   let pfad;
   try { pfad = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
   catch (_){ res.writeHead(400); return res.end('Ungültige Anfrage'); }
   if (req.method === 'GET' && pfad === '/healthz'){ res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
   if (req.method === 'GET' && pfad.startsWith('/datenschutz')) return senden(res, 'datenschutz.html', 'no-cache');
+  if (req.method === 'POST' && pfad === '/api/olymp') return olympAnfrage(req, res);
   if (zugang.pruefen(req, res)) return;
   if (req.method !== 'GET' && req.method !== 'HEAD'){ res.writeHead(405); return res.end(); }
   if (pfad === '/' || pfad === '/index.html' || pfad === '/iron-horizon'){ res.writeHead(302, { Location: '/iron-horizon/' }); return res.end(); }

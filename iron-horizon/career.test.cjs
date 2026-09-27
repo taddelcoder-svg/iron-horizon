@@ -41,3 +41,26 @@ test('the Ass difficulty adds a quarter on top; lower levels do not', () => {
   const ace = C.rewards('blue', stats, 'ace'); assert.equal(ace.breakdown.difficulty, 147); assert.equal(ace.xp, 736);
   assert.equal(C.award(C.empty(), 'r', 'blue', stats, 'ace').state.xp, 736);
 });
+test('old saves without Dachs, awards or map wins still load', () => {
+  const old = { ...C.empty() }; delete old.awards; delete old.mapWins; delete old.bounced; old.paints = { luchs: 'olive', keiler: 'olive' };
+  const clean = C.validate(old); assert.equal(clean.paints.dachs, 'olive'); assert.deepEqual(clean.awards, []); assert.equal(clean.mapWins.valley, 0);
+});
+test('awards: first win, triple, flawless, Ass-Sieg unlocks the Swimming Lions paint', () => {
+  const earned = C.award(C.empty(), 'a', 'blue', { kills: 3, deaths: 0 }, 'ace', 'quarry');
+  assert.deepEqual(earned.awards.map(a => a.id), ['first-win', 'triple', 'flawless', 'ace-win']);
+  assert.ok(earned.unlocks.some(p => p.id === 'lions')); assert.equal(earned.state.mapWins.quarry, 1);
+  const store = new C.Store(memory()); assert.equal(store.choose('dachs', 'lions'), false);
+  store.award('b', 'blue', {}, 'ace', 'border'); assert.equal(store.choose('dachs', 'lions'), true);
+  assert.throws(() => C.validate({ ...C.empty(), paints: { luchs: 'lions', keiler: 'olive', dachs: 'olive' } }));
+});
+test('awards: map tour, thick skin and field repairs accumulate across rounds', () => {
+  let state = C.empty();
+  state = C.award(state, 'r1', 'blue', { bounced: 6 }, 'veteran', 'border').state;
+  state = C.award(state, 'r2', 'blue', { bounced: 5, fieldRepairs: 1 }, 'veteran', 'quarry').state;
+  assert.ok(state.awards.includes('thick-skin') && state.awards.includes('field-repair') && !state.awards.includes('all-maps'));
+  const last = C.award(state, 'r3', 'blue', {}, 'veteran', 'valley'); assert.ok(last.awards.some(a => a.id === 'all-maps'));
+  assert.equal(C.award(last.state, 'r4', 'red', { soloCaptures: 1 }, 'recruit', 'valley').awards[0].id, 'solo-capture');
+});
+test('the Dachs needs rank Frontkämpfer for battles', () => {
+  assert.equal(C.vehicleUnlocked('dachs', 1199), false); assert.equal(C.vehicleUnlocked('dachs', 1200), true); assert.equal(C.vehicleUnlocked('luchs', 0), true);
+});

@@ -49,3 +49,13 @@ test('standing still is more accurate than driving', () => {
   const { luchs, keiler } = S.profiles;
   assert.ok(S.spread(luchs, 0) < S.spread(luchs, 1) / 4); assert.ok(S.spread(keiler, .5) > S.spread(luchs, .5)); assert.ok(S.spread(luchs, 0, 1) > S.spread(luchs, 0));
 });
+test('the Dachs trades its turret for the biggest gun and the strongest front', () => {
+  const { luchs, keiler, dachs } = S.profiles;
+  assert.deepEqual(S.VEHICLES, ['luchs', 'keiler', 'dachs']);
+  assert.ok(dachs.traverse > 0 && dachs.traverse < .25 && !luchs.traverse && !keiler.traverse);
+  assert.ok(dachs.power > keiler.power && dachs.front <= keiler.front && dachs.reload > keiler.reload && dachs.speed < keiler.speed);
+  const casemate = S.fresh(); assert.equal(S.hitModule(casemate, { x: .3, y: 1.9, z: 0 }, dachs), null, 'casemate roof is plain armour');
+  assert.equal(S.hitModule(casemate, { x: .2, y: 2.1, z: -2.5 }, dachs), 'turret', 'gun mantlet');
+  assert.equal(S.hitModule(S.fresh(), { x: .2, y: 1.7, z: -2 }, dachs), null, 'lower front plate is plain armour');
+  assert.equal(S.damage(1, dachs, luchs, null), 46); assert.equal(S.damage(1, luchs, dachs, null), 14);
+});

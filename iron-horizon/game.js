@@ -3,7 +3,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const start = $('startButton');
-  function fail(message) { $('error').hidden = false; $('error').textContent = message; start.disabled = true; start.firstChild.textContent = 'START NICHT MÖGLICH '; }
+  function fail(message) { loadFailed = true; $('error').hidden = false; $('error').textContent = message; start.disabled = true; start.firstChild.textContent = 'START NICHT MÖGLICH '; }
+  var loadFailed = false;
   if (!window.THREE || !window.IronBattle || !window.IronSystems || !window.IronCareer || !window.IronMaps || !window.IronTerrain) { fail('Spieldateien konnten nicht geladen werden. Bitte lade die Seite neu und prüfe den Spielordner.'); return; }
   const T = window.THREE;
   const Systems = window.IronSystems;
@@ -12,6 +13,7 @@
   let roundId = '', pendingImport = null;
   const withCareerLock = action => navigator.locks?.request ? navigator.locks.request('iron-horizon-career', action) : Promise.resolve().then(action);
   let selectedVehicle = 'luchs', selectedMap = 'border', level = IronMaps.levels.border, terrain = null;
+  let olympia = null;   // Olympia-Challenge, siehe unten
   let renderer;
   try { renderer = new T.WebGLRenderer({ canvas: $('world'), antialias: true, powerPreference: 'high-performance' }); }
   catch (_) { fail('Dein Browser konnte WebGL nicht starten. Bitte öffne das Spiel in einem Browser mit aktivierter Hardwarebeschleunigung.'); return; }
@@ -56,14 +58,15 @@
   }
   function refreshMapUi() {
     $('mapSelect').value = level.id; $('mapDescription').textContent = level.description;
-    $('missionTitle').textContent = `${level.name} erobern.`; $('missionNumber').textContent = level.number;
+    $('missionTitle').textContent = mission === 'attack' ? `Durchbruch: ${level.name} angreifen.` : mission === 'defense' ? `Durchbruch: ${level.name} verteidigen.` : `${level.name} erobern.`; $('missionNumber').textContent = level.number;
+    $('missionText').innerHTML = mission === 'domination' ? 'Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.' : mission === 'attack' ? `Nimm erst Punkt A, dann Punkt B.<br>${IronBattle.Breakthrough.TICKETS} Tickets, jede Eroberung bringt 3 Minuten.` : 'Halte Punkt A und B, bis die Zeit abläuft<br>oder dem Angreifer die Tickets ausgehen.';
     $('locationName').textContent = level.name.toUpperCase();
     $('mapCaption').textContent = `${level.name.toUpperCase()} / ${level.number}`;
     $('pause').querySelector('.eyebrow').textContent = `${level.name.toUpperCase()} ${level.number}`;
-    $('difficultyNote').textContent = { recruit: 'Gegner reagieren langsam und streuen stark. Ideal zum Einstieg.', veteran: 'Ausgewogene Gegner mit Flanken und Rauch.', ace: 'Schnelle, genaue Gegner, die auf Seiten und Ketten zielen. +25 % Erfahrung.' }[difficulty];
+    $('difficultyNote').textContent = { recruit: 'Gegner reagieren langsam, streuen stark und laden langsamer nach. Ideal zum Einstieg.', veteran: 'Ausgewogene Gegner mit Flanken und Rauch.', ace: 'Schnelle, genaue Gegner, die schneller nachladen und auf Seiten und Ketten zielen. +25 % Erfahrung.' }[difficulty] + ' Deine Verbündeten kämpfen immer wie Veteranen.';
   }
   function makeTank(color) {
-    const root = new T.Group(); const wheels = [];
+    const root = new T.Group(); const wheels = []; root.rotation.order = 'YXZ';
     box(3.1, .9, 5.1, color, root, 0, 1.15, 0);
     const glacis = box(3, .42, 1.6, color, root, 0, 1.57, -1.8); glacis.rotation.x = -.2;
     box(3.1, .12, 2, '#737957', root, 0, 1.65, 1.5);
@@ -78,10 +81,11 @@
       for (let j = 0; j < 14; j++) box(.81, .075, .17, '#77745c', root, side * 1.78, 1.33, -2.5 + j * .385);
     }
     const turret = new T.Group(); turret.position.y = 1.75; root.add(turret);
-    cyl(1.2, 1.4, .85, color, turret, 0, .25, -.2, 7);
-    box(1.6, .65, .6, color, turret, 0, .3, -1.1);
-    cyl(.51, .54, .18, '#85896b', turret, .3, .8, .1, 10);
-    box(.1, 2.5, .1, '#313c31', turret, -.8, 1.65, .55);
+    const turretBody = [cyl(1.2, 1.4, .85, color, turret, 0, .25, -.2, 7), box(1.6, .65, .6, color, turret, 0, .3, -1.1), cyl(.51, .54, .18, '#85896b', turret, .3, .8, .1, 10), box(.1, 2.5, .1, '#313c31', turret, -.8, 1.65, .55)];
+    // Casemate superstructure of the turretless Dachs; hidden for the other tanks.
+    const slope = box(3, .9, 1.4, color, root, 0, 1.98, -2.05); slope.rotation.x = .62;
+    const casemate = [box(3, 1.05, 3.4, color, root, 0, 2.08, -.25), slope, cyl(.46, .5, .3, '#85896b', root, .75, 2.75, .45, 10)];
+    casemate.forEach(mesh => { mesh.visible = false; });
     const gun = new T.Group(); gun.position.set(0, .3, -1.25); turret.add(gun);
     const barrel = cyl(.105, .14, 3, '#4c5944', gun, 0, 0, -1.45); barrel.rotation.x = Math.PI / 2;
     const muzzle = cyl(.16, .16, .3, '#333f32', gun, 0, 0, -3); muzzle.rotation.x = Math.PI / 2;
@@ -91,7 +95,7 @@
     // Painted recognition stripes on the hull.
     box(.08, .35, .8, '#dbc990', root, 1.565, 1.2, -.6);
     box(.08, .35, .8, '#dbc990', root, -1.565, 1.2, -.6);
-    scene.add(root); return { root, turret, gun, wheels };
+    scene.add(root); return { root, turret, gun, wheels, turretBody, casemate, gunBase: -1.25 };
   }
   const tank = makeTank('#737c50');
   const player = { ...tank, id: 'player', team: 'blue', callsign: 'DU', hp: 100, alive: true, respawn: 0, shield: 3, hitMeshes: [], yaw: 0, profile: Systems.profiles.luchs, systems: Systems.fresh(), lastHit: null };
@@ -137,53 +141,109 @@
     bot.systems = Systems.fresh(); applyProfile(bot, i === 1 || i === 3 ? 'keiler' : 'luchs');
   });
   function applyProfile(vehicle, id) {
-    vehicle.profile = Systems.profiles[id]; const heavy = id === 'keiler';
-    vehicle.root.scale.set(heavy ? 1.12 : 1, heavy ? 1.08 : 1, heavy ? 1.1 : 1);
+    vehicle.profile = Systems.profiles[id]; const heavy = id === 'keiler', casemate = id === 'dachs';
+    vehicle.root.scale.set(heavy ? 1.12 : casemate ? 1.06 : 1, heavy ? 1.08 : casemate ? .96 : 1, heavy ? 1.1 : casemate ? 1.08 : 1);
+    vehicle.turretBody.forEach(mesh => { mesh.visible = !casemate; }); vehicle.casemate.forEach(mesh => { mesh.visible = casemate; });
+    vehicle.turret.position.y = casemate ? 1.62 : 1.75; vehicle.gunBase = casemate ? -2.5 : -1.25; vehicle.gun.position.set(0, casemate ? .45 : .3, vehicle.gunBase);
     vehicle.turret.scale.set(heavy ? 1.16 : 1, heavy ? 1.1 : 1, heavy ? 1.06 : 1);
-    vehicle.gun.scale.set(heavy ? 1.65 : 1, heavy ? 1.65 : 1, heavy ? 1.18 : 1);
+    vehicle.gun.scale.set(heavy ? 1.65 : casemate ? 1.9 : 1, heavy ? 1.65 : casemate ? 1.9 : 1, heavy ? 1.18 : casemate ? 1.35 : 1);
+    refreshHitMeshes(vehicle);
+  }
+  // Only visible parts can be hit (the hidden turret or casemate must not stop shells).
+  function refreshHitMeshes(vehicle) {
+    if (!vehicle.hitMeshes) return;
+    vehicle.hitMeshes.length = 0;
+    vehicle.root.traverse(object => {
+      if (!object.isMesh) return;
+      for (let node = object; node && node !== vehicle.root; node = node.parent) if (!node.visible) return;
+      vehicle.hitMeshes.push(object);
+    });
   }
   function selectVehicle(id) {
     if (mode !== 'menu' || !Systems.profiles[id]) return;
     selectedVehicle = id; applyProfile(player, id); saveSettings(); refreshVehicleUi();
   }
+  function dachsLocked() { return !Career.vehicleUnlocked('dachs', careerStore.state.xp); }
+  function refreshStart() {
+    if (loadFailed) return;
+    const locked = selectedVehicle === 'dachs' && dachsLocked();
+    start.disabled = locked; start.firstChild.textContent = locked ? 'DACHS AB RANG FRONTKÄMPFER ' : 'GEFECHT STARTEN ';
+    $('dachsHint').textContent = dachsLocked() ? 'Jagdpanzer · Gefecht ab Frontkämpfer' : 'Jagdpanzer · Fernkampf';
+    if (olympia) olympiaMenue();
+  }
   function refreshVehicleUi() {
     const p = player.profile;
-    $('selectLuchs').setAttribute('aria-pressed', String(p.id === 'luchs')); $('selectKeiler').setAttribute('aria-pressed', String(p.id === 'keiler'));
-    $('vehicleIndex').textContent = p.id === 'luchs' ? '01 / 02' : '02 / 02';
+    for (const [button, id] of [['selectLuchs', 'luchs'], ['selectKeiler', 'keiler'], ['selectDachs', 'dachs']]) $(button).setAttribute('aria-pressed', String(p.id === id));
+    $('vehicleIndex').textContent = `0${Systems.VEHICLES.indexOf(p.id) + 1} / 03`;
     $('vehicleName').innerHTML = `${p.name} <span>${p.version}</span>`; $('vehicleRole').textContent = p.role;
     $('vehicleSpeed').innerHTML = `${Math.round(p.speed * 3.6)}<small>KM/H</small>`;
     $('vehicleCalibre').innerHTML = `${p.calibre}<small>MM</small>`; $('vehicleReload').innerHTML = `${p.reload}<small>SEK.</small>`;
     $('vehicleNote').textContent = p.note; $('hudVehicle').textContent = `${p.name} ${p.version}`;
     $('hudCalibre').textContent = `${p.calibre} MM · PANZERBRECHEND`;
-    applyPaint(); refreshCareer();
+    applyPaint(); refreshCareer(); refreshStart();
   }
-  const captureZone = new T.Group(); captureZone.position.set(0, 0, -10); scene.add(captureZone);
-  const captureRing = new T.Mesh(new T.RingGeometry(16.7, 17, 80), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide }));
-  captureRing.rotation.x = -Math.PI / 2; captureRing.position.y = .11; captureZone.add(captureRing);
-  cyl(.1, .14, 8, '#c4c8af', captureZone, 0, 4, 0, 8);
-  const captureFlag = box(3, 1.5, .06, '#b8ae83', captureZone, 1.5, 7, 0); captureFlag.material = captureFlag.material.clone();
-  let gameType = 'battle', match = new IronBattle.Match(), stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0 }, damageTime = 0;
+  // Objective markers: A always, B only in Durchbruch. Ring radius is scaled per point.
+  function makeZone() {
+    const group = new T.Group(); scene.add(group);
+    const ring = new T.Mesh(new T.RingGeometry(16.7, 17, 80), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = .11; group.add(ring);
+    cyl(.1, .14, 8, '#c4c8af', group, 0, 4, 0, 8);
+    const flag = box(3, 1.5, .06, '#b8ae83', group, 1.5, 7, 0); flag.material = flag.material.clone();
+    return { group, ring, flag };
+  }
+  const zones = [makeZone(), makeZone()];
+  function placeZone(zone, point) { zone.group.position.set(point.x, ground(point.x, point.z), point.z); zone.ring.scale.setScalar(point.radius / 17); zone.group.visible = true; }
+  function colorZone(zone, color) { zone.ring.material.color.set(color); zone.flag.material.color.set(color).convertSRGBToLinear(); }
+  let gameType = 'battle', match = new IronBattle.Match(), stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0 }, damageTime = 0, matchMission = 'domination';
+  const freshStats = () => ({ hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0, bounced: 0, soloCaptures: 0, fieldRepairs: 0 });
   const combatRay = new T.Raycaster();
   function shotObjects(exclude) { return [...solids, ...(gameType === 'battle' && player.alive && exclude !== player ? player.hitMeshes : []), ...targets.filter(t => t.alive && t !== exclude).flatMap(t => t.hitMeshes)]; }
   const ray = new T.Raycaster(), aimRay = new T.Raycaster(), cameraRay = new T.Raycaster();
   const cameraAnchor = new T.Vector3(), cameraDirection = new T.Vector3();
   const aimPoint = new T.Vector3(), direction = new T.Vector3(), temp = new T.Vector3();
   const keys = new Set();
-  let mode = 'menu', velocity = 0, hullYaw = 0, turretYaw = 0, viewYaw = 0, pitch = -.16, steerInput = 0, obstacleContact = false;
+  let mode = 'menu', velocity = 0, hullYaw = 0, turretYaw = 0, viewYaw = 0, pitch = -.16, steerInput = 0, throttleInput = 0, obstacleContact = false;
   const touch = { throttle: 0, steer: 0, brake: false, repair: false };
   let reload = 0, recoil = 0, zoom = false, elapsed = 0, noticeTime = 0, dustTime = 0, hitCount = 0;
-  let sensitivity = 1, soundEnabled = true, shakeEnabled = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let sensitivity = 1, shakeEnabled = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Touch devices start in touch mode; a real mouse click switches back (hybrid laptops).
   let touchMode = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
-  let quality = touchMode ? 'medium' : 'high', introSeen = false, difficulty = 'veteran', invertY = false, showFps = false;
+  let quality = touchMode ? 'medium' : 'high', introSeen = false, difficulty = 'veteran', invertY = false, showFps = false, mission = 'domination';
   let matchDifficulty = IronBattle.difficulties.veteran;
-  let audio, engine, engineGain, trackGain, trackPulse, throttleLoad = 0;
+  // "Gegnerstärke" sets the enemies only; allies always fight like veterans. The balance tournament can
+  // override both teams and the autopilot player (skillOverride = { blue, red, player }).
+  let teamSkill = { blue: matchDifficulty, red: matchDifficulty }, playerSkill = null, skillOverride = null;
+  const skillOf = vehicle => vehicle === player && playerSkill ? playerSkill : teamSkill[vehicle.team];
   const particleGeometry = new T.SphereGeometry(1, 5, 4);
   const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a', '#fff0b3'].map(color => new T.MeshBasicMaterial({ color }));
   const events = [], killLog = []; let previousOwner = null, autopilot = false;
-  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); soundEnabled = saved.sound !== false; if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; } catch (_) { /* Storage may be disabled. */ }
-  $('sensitivity').value = sensitivity; $('sound').checked = soundEnabled; $('shake').checked = shakeEnabled; $('quality').value = quality; $('difficultySelect').value = difficulty; $('invertY').checked = invertY; $('showFps').checked = showFps; $('fps').hidden = !showFps;
-  function saveSettings() { try { localStorage.setItem('iron-horizon-settings', JSON.stringify({ sensitivity, sound: soundEnabled, shake: shakeEnabled, vehicle: selectedVehicle, map: selectedMap, quality, intro: introSeen, difficulty, invertY, fps: showFps })); } catch (_) {} }
+  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; if (['domination', 'attack', 'defense'].includes(saved.mission)) mission = saved.mission; } catch (_) { /* Storage may be disabled. */ }
+  // Olympiade: Mit ?olymp=… im Link gibt es die Gefechts-Challenge – für alle dieselbe Karte, derselbe Panzer,
+  // dieselben Gegner (fester Startwert aus dem Lauf). Ein Versuch; die Punkte rechnet der Server.
+  olympia = (() => {
+    let ticket = new URLSearchParams(location.search).get('olymp');
+    try { if (ticket) sessionStorage.setItem('iron-horizon-olymp', ticket); else ticket = sessionStorage.getItem('iron-horizon-olymp'); } catch (_) {}
+    if (!ticket) return null;
+    history.replaceState(null, '', location.pathname);
+    let info;
+    try { info = JSON.parse(decodeURIComponent(escape(atob(ticket.split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))))); } catch (_) { return null; }
+    const alt = { vehicle: selectedVehicle, map: selectedMap, difficulty, mission };
+    let startwert = 7;
+    for (const zeichen of String(info.l)) startwert = (startwert * 31 + zeichen.charCodeAt(0)) >>> 0;
+    return { ticket, info, alt, startwert: startwert || 1, versuchKey: 'iron-horizon-olymp-' + info.l, gemeldet: false };
+  })();
+  if (olympia) {
+    const c = olympia.info.c || {};
+    if (Object.hasOwn(IronMaps.levels, c.karte)) selectedMap = c.karte;
+    if (['luchs', 'keiler'].includes(c.panzer)) selectedVehicle = c.panzer;
+    difficulty = 'veteran'; mission = 'domination';
+  }
+  $('sensitivity').value = sensitivity; $('shake').checked = shakeEnabled; $('quality').value = quality; $('difficultySelect').value = difficulty; $('invertY').checked = invertY; $('showFps').checked = showFps; $('fps').hidden = !showFps; $('missionSelect').value = mission;
+  function saveSettings() {
+    // In der Olympiade bleiben die eigenen Einstellungen für Karte, Panzer, Gegner und Modus unangetastet
+    const eigen = olympia ? olympia.alt : { vehicle: selectedVehicle, map: selectedMap, difficulty, mission };
+    try { localStorage.setItem('iron-horizon-settings', JSON.stringify({ sensitivity, shake: shakeEnabled, vehicle: eigen.vehicle, map: eigen.map, quality, intro: introSeen, difficulty: eigen.difficulty, invertY, fps: showFps, mission: eigen.mission })); } catch (_) {}
+  }
   $('difficultySelect').onchange = event => { if (mode !== 'menu' || !Object.hasOwn(IronBattle.difficulties, event.target.value)) return; difficulty = event.target.value; saveSettings(); refreshMapUi(); };
   $('invertY').onchange = event => { invertY = event.target.checked; saveSettings(); };
   $('showFps').onchange = event => { showFps = event.target.checked; $('fps').hidden = !showFps; saveSettings(); };
@@ -203,9 +263,9 @@
     if (mode !== 'menu' || !Object.hasOwn(IronMaps.levels, event.target.value)) return;
     selectedMap = event.target.value; saveSettings(); reset();
   };
-  $('selectLuchs').onclick = () => selectVehicle('luchs'); $('selectKeiler').onclick = () => selectVehicle('keiler');
+  $('selectLuchs').onclick = () => selectVehicle('luchs'); $('selectKeiler').onclick = () => selectVehicle('keiler'); $('selectDachs').onclick = () => selectVehicle('dachs');
+  $('missionSelect').onchange = event => { if (mode !== 'menu' || !['domination', 'attack', 'defense'].includes(event.target.value)) return; mission = event.target.value; saveSettings(); refreshMapUi(); };
   $('sensitivity').oninput = event => { sensitivity = Number(event.target.value); saveSettings(); };
-  $('sound').onchange = event => { soundEnabled = event.target.checked; saveSettings(); };
   $('shake').onchange = event => { shakeEnabled = event.target.checked; saveSettings(); };
   function paintBackground(paint) { return `linear-gradient(135deg, ${paint.colors.map((color, i) => `${color} ${i * 100 / paint.colors.length}%, ${color} ${(i + 1) * 100 / paint.colors.length}%`).join(', ')})`; }
   function refreshCareer() {
@@ -215,15 +275,20 @@
     $('careerProgress').textContent = rank.next ? `${state.xp.toLocaleString('de-DE')} EP gesamt · Noch ${(rank.next.xp - state.xp).toLocaleString('de-DE')} EP bis ${rank.next.name}` : `${state.xp.toLocaleString('de-DE')} EP gesamt · Höchster Rang erreicht`;
     $('careerProgressBar').style.width = `${rank.next ? (state.xp - rank.current.xp) / (rank.next.xp - rank.current.xp) * 100 : 100}%`;
     const fields = [['GEFECHTE', state.matches], ['SIEGE', state.wins], ['ABSCHÜSSE', state.kills], ['TREFFER', state.hits], ['VERLUSTE', state.deaths], ['ZIELZEIT', `${Math.floor(state.captureSeconds / 60)} MIN`], ['BESTES GEFECHT', `${state.bestXp} EP`], ['SIEGQUOTE', `${state.matches ? Math.round(state.wins / state.matches * 100) : 0}%`]];
+    $('careerAwards').replaceChildren(...Career.awards.map(entry => {
+      const item = document.createElement('li'), earned = state.awards.includes(entry.id); item.className = earned ? 'earned' : '';
+      const name = document.createElement('b'), text = document.createElement('span'); name.textContent = `${earned ? '★' : '☆'} ${entry.name}`; text.textContent = entry.text; item.append(name, text); return item;
+    }));
+    $('awardCount').textContent = `${state.awards.length} / ${Career.awards.length}`;
     $('careerStats').innerHTML = fields.map(([label, value]) => `<span>${label}<b>${value}</b></span>`).join('');
     $('paintVehicle').textContent = player.profile.name;
     for (const [container, detailed] of [[$('garagePaints'), false], [$('careerPaints'), true]]) {
       container.replaceChildren();
       for (const paint of Career.paints) {
-        const unlocked = state.xp >= paint.xp, button = document.createElement('button');
+        const unlocked = Career.paintUnlocked(paint, state), button = document.createElement('button'), requirement = paint.award ? `Auszeichnung „${Career.awards.find(a => a.id === paint.award).name}“` : `ab ${paint.xp} EP`;
         button.type = 'button'; button.disabled = !unlocked; button.dataset.paint = paint.id; button.setAttribute('aria-pressed', String(currentPaint === paint.id));
-        button.title = `${paint.name}${unlocked ? '' : ` · ab ${paint.xp} EP`}`; button.setAttribute('aria-label', button.title);
-        if (detailed) { const swatch = document.createElement('i'); swatch.style.background = paintBackground(paint); const label = document.createElement('span'); label.textContent = paint.name; const hint = document.createElement('small'); hint.textContent = unlocked ? currentPaint === paint.id ? 'AUSGERÜSTET' : 'VERFÜGBAR' : `${paint.xp} EP`; button.append(swatch, label, hint); }
+        button.title = `${paint.name}${unlocked ? '' : ` · ${requirement}`}`; button.setAttribute('aria-label', button.title);
+        if (detailed) { const swatch = document.createElement('i'); swatch.style.background = paintBackground(paint); const label = document.createElement('span'); label.textContent = paint.name; const hint = document.createElement('small'); hint.textContent = unlocked ? currentPaint === paint.id ? 'AUSGERÜSTET' : 'VERFÜGBAR' : paint.award ? 'AUSZEICHNUNG' : `${paint.xp} EP`; button.append(swatch, label, hint); }
         else button.style.background = paintBackground(paint);
         button.onclick = () => withCareerLock(() => { if (careerStore.choose(player.profile.id, paint.id)) { applyPaint(); refreshCareer(); $('careerStatus').textContent = careerStore.warning || `${paint.name} für ${player.profile.name} ausgerüstet.`; } });
         container.appendChild(button);
@@ -252,50 +317,24 @@
   $('cancelImport').onclick = () => { pendingImport = null; $('importPreview').hidden = true; $('careerStatus').textContent = 'Import abgebrochen. Dein Spielstand bleibt erhalten.'; };
   $('confirmImport').onclick = () => withCareerLock(() => {
     if (!pendingImport) return;
-    const saved = careerStore.commit(pendingImport, true); pendingImport = null; $('importPreview').hidden = true; refreshCareer(); applyPaint();
+    const saved = careerStore.commit(pendingImport, true); pendingImport = null; $('importPreview').hidden = true; refreshCareer(); applyPaint(); refreshStart();
     $('careerStatus').textContent = saved ? 'Spielstand importiert und lokal gespeichert.' : careerStore.warning;
   });
-  window.addEventListener('storage', event => { if (event.key === Career.KEY && !careerStore.protected) { careerStore.read(); refreshCareer(); if (mode === 'menu') applyPaint(); } });
+  window.addEventListener('storage', event => { if (event.key === Career.KEY && !careerStore.protected) { careerStore.read(); refreshCareer(); refreshStart(); if (mode === 'menu') applyPaint(); } });
   async function recordRound() {
-    const id = roundId, result = match.result, finalStats = { ...stats }, difficultyId = matchDifficulty.id;
+    const id = roundId, result = match.result, finalStats = { ...stats }, difficultyId = matchDifficulty.id, mapId = level.id;
     $('earnedXp').textContent = 'Erfahrung wird gezählt …'; $('xpBreakdown').textContent = $('unlockNotice').textContent = $('saveStatus').textContent = '';
     try {
       const previousRank = Career.rank(careerStore.state.xp).current.name;
-      const reward = await withCareerLock(() => careerStore.award(id, result, finalStats, difficultyId)); refreshCareer();
+      const reward = await withCareerLock(() => careerStore.award(id, result, finalStats, difficultyId, mapId)); refreshCareer();
       if (roundId !== id || mode !== 'result') return;
       $('earnedXp').textContent = `+${reward.xp} EP`;
       const b = reward.breakdown;
       $('xpBreakdown').textContent = reward.duplicate ? 'Dieses Gefecht wurde bereits verbucht.' : `Gefecht ${b.participation} · Ergebnis ${b.outcome} · Abschüsse ${b.kills} · Treffer ${b.hits} · Zielbeitrag ${b.objective}${b.difficulty ? ` · Ass-Bonus ${b.difficulty}` : ''}`;
       const currentRank = Career.rank(careerStore.state.xp).current.name;
-      $('unlockNotice').textContent = [currentRank !== previousRank ? `Neuer Rang: ${currentRank}` : '', ...reward.unlocks.map(p => `Freigeschaltet: ${p.name}`)].filter(Boolean).join(' · ');
+      $('unlockNotice').textContent = [currentRank !== previousRank ? `Neuer Rang: ${currentRank}` : '', ...reward.awards.map(a => `Auszeichnung: ${a.name}`), ...reward.unlocks.map(p => `Freigeschaltet: ${p.name}`), currentRank !== previousRank && currentRank === 'Frontkämpfer' ? 'Dachs jetzt im Gefecht verfügbar' : ''].filter(Boolean).join(' · ');
       $('saveStatus').textContent = reward.saved ? 'Fortschritt lokal gespeichert.' : careerStore.warning;
     } catch (_) { if (roundId === id) { $('earnedXp').textContent = 'Fortschritt nicht verbucht'; $('saveStatus').textContent = 'Der Spielstand konnte nicht aktualisiert werden. Ein Export des bestehenden Profils bleibt möglich.'; } }
-  }
-  function initAudio() {
-    try {
-      if (!audio) {
-        audio = new (window.AudioContext || window.webkitAudioContext)(); engine = audio.createOscillator(); engineGain = audio.createGain();
-        engine.type = 'sawtooth'; engine.frequency.value = 38; engineGain.gain.value = 0;
-        const filter = audio.createBiquadFilter(); filter.frequency.value = 160; engine.connect(filter); filter.connect(engineGain); engineGain.connect(audio.destination); engine.start();
-        // Track clatter: looping noise through a band-pass, pulsed by an oscillator whose rate follows the speed.
-        const noise = audio.createBuffer(1, audio.sampleRate, audio.sampleRate), data = noise.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        const source = audio.createBufferSource(); source.buffer = noise; source.loop = true;
-        const band = audio.createBiquadFilter(); band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = 1.4;
-        trackGain = audio.createGain(); trackGain.gain.value = 0; trackPulse = audio.createOscillator(); trackPulse.type = 'square'; trackPulse.frequency.value = 4;
-        const pulseDepth = audio.createGain(); pulseDepth.gain.value = .5; trackPulse.connect(pulseDepth); pulseDepth.connect(trackGain.gain);
-        source.connect(band); band.connect(trackGain); trackGain.connect(audio.destination); source.start(); trackPulse.start();
-      }
-      audio.resume().catch(() => {});
-    } catch (_) { /* Sound is optional. */ }
-  }
-  function tone(frequency, duration, volume, endFrequency = 25) {
-    if (!audio || !soundEnabled) return;
-    const oscillator = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime;
-    oscillator.type = 'triangle'; oscillator.frequency.setValueAtTime(frequency, t); oscillator.frequency.exponentialRampToValueAtTime(endFrequency, t + duration);
-    gain.gain.setValueAtTime(volume, t); gain.gain.exponentialRampToValueAtTime(.001, t + duration);
-    oscillator.connect(gain); gain.connect(audio.destination); oscillator.start(); oscillator.stop(t + duration);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
   }
   function notify(message, seconds = 3) { $('notice').textContent = message; noticeTime = seconds; }
   // Bright, fast, short-lived sparks at the impact point; ricochets spray along the deflected path.
@@ -340,7 +379,6 @@
       sprite.scale.setScalar(5 + random() * 3); sprite.material.rotation = random() * Math.PI; group.add(sprite);
     }
     smokeClouds.push(cloud);
-    if (vehicle.root.position.distanceTo(tank.root.position) < 90) tone(220, .7, vehicle === player ? .09 : .04, 60);
     targets.forEach(bot => { bot.visibleToPlayer = false; bot.thinkTimer = 0; });
     if (vehicle === player) notify('RAUCH AKTIV · SICHT FÜR 10 SEKUNDEN VERDECKT\nGeschosse können den Rauch weiterhin durchdringen.', 3);
     return true;
@@ -353,25 +391,38 @@
     }
   }
   function reset() {
-    loadMap(selectedMap); refreshMapUi(); captureZone.position.set(level.capture.x, 0, level.capture.z);
+    loadMap(selectedMap); refreshMapUi();
     roundId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const [startX, startZ] = gameType === 'training' ? level.trainingStart : level.playerStart; tank.root.position.set(startX, 0, startZ); hullYaw = turretYaw = viewYaw = 0; pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
-    match = new IronBattle.Match(); stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0 }; damageTime = 0; guards.blue = guards.red = null; events.length = killLog.length = 0; previousOwner = null;
+    matchMission = gameType === 'battle' ? mission : 'domination';
+    match = matchMission === 'domination' ? new IronBattle.Match() : new IronBattle.Breakthrough(matchMission === 'attack' ? 'blue' : 'red');
+    btPoints = match.mode === 'breakthrough' ? [level.capture, level.breakthrough[match.defender]] : [];
+    stats = freshStats(); damageTime = 0; guards.blue = guards.red = null; events.length = killLog.length = 0; previousOwner = null; previousStage = 0;
     matchDifficulty = IronBattle.difficulties[difficulty];
+    teamSkill = { blue: IronBattle.difficulties[skillOverride?.blue || (autopilot ? difficulty : 'veteran')], red: IronBattle.difficulties[skillOverride?.red || difficulty] };
+    playerSkill = skillOverride?.player ? IronBattle.difficulties[skillOverride.player] : null;
+    // Bots: mirrored pairs share a vehicle (blue 1 ↔ red 1, blue 2 ↔ red 2); red 3 mirrors the player.
+    if (!autopilot) {
+      const [first, second] = gameType === 'battle' && lineup ? lineup : ['luchs', 'keiler'];
+      [first, second, first, second, gameType === 'battle' ? selectedVehicle : 'luchs'].forEach((id, i) => applyProfile(targets[i], id));
+    }
     Object.assign(player, { hp: 100, alive: true, respawn: 0, shield: 3, yaw: 0, systems: Systems.fresh(), lastHit: null }); tank.root.visible = true; steerInput = 0;
     applyProfile(player, selectedVehicle); refreshVehicleUi(); clearSmoke();
     for (const target of targets) {
-      [target.x, target.z] = level.training[target.id]; target.ring.position.set(target.x, .09, target.z); target.flagGroup.position.set(target.x, 0, target.z);
+      [target.x, target.z] = level.training[target.id]; target.ring.position.set(target.x, ground(target.x, target.z) + .09, target.z); target.flagGroup.position.set(target.x, ground(target.x, target.z), target.z);
       target.hits = 0; target.systems = Systems.fresh(); target.ring.material.color.set('#eab577'); target.flagGroup.visible = gameType === 'training'; target.label.hidden = true;
       Object.assign(target, { hp: 100, alive: true, respawn: 0, shield: 3, reload: 1 + random(), path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, visibleToPlayer: false }, freshTactics(target));
       target.root.visible = true; target.ring.visible = gameType === 'training';
       if (gameType === 'training') { target.root.position.set(target.x, 0, target.z); target.yaw = .3 + target.id * 1.1; }
       else { target.root.position.set(...spawnCoordinates(target)); target.yaw = target.team === 'blue' ? 0 : Math.PI; }
-      target.turretYaw = target.yaw; target.root.rotation.y = target.yaw; target.turret.rotation.y = 0; target.gun.rotation.x = 0;
+      target.turretYaw = target.yaw; settle(target, target.yaw); target.turret.rotation.y = 0; target.gun.rotation.x = 0;
     }
-    captureZone.visible = gameType === 'battle'; $('matchHud').hidden = gameType !== 'battle'; $('captureTrack').hidden = gameType !== 'battle'; $('healthTrack').hidden = gameType !== 'battle';
-    $('modeLabel').textContent = gameType === 'battle' ? `VORHERRSCHAFT · GEGNER: ${matchDifficulty.name.toUpperCase()}` : 'SCHIESSÜBUNG';
-    $('objectiveTitle').textContent = gameType === 'battle' ? 'Erobere Punkt A' : 'Erfasse die Übungsziele';
+    zones.forEach(zone => { zone.group.visible = false; });
+    if (gameType === 'battle') { placeZone(zones[0], level.capture); if (match.mode === 'breakthrough') placeZone(zones[1], btPoints[1]); }
+    layouts.clear(); $('matchHud').hidden = gameType !== 'battle'; $('captureTrack').hidden = gameType !== 'battle'; $('healthTrack').hidden = gameType !== 'battle';
+    $('modeLabel').textContent = gameType === 'battle' ? `${match.mode === 'breakthrough' ? matchMission === 'attack' ? 'DURCHBRUCH · ANGRIFF' : 'DURCHBRUCH · VERTEIDIGUNG' : 'VORHERRSCHAFT'} · GEGNER: ${matchDifficulty.name.toUpperCase()}` : 'SCHIESSÜBUNG';
+    $('objectiveTitle').textContent = gameType === 'battle' ? objectiveTitle() : 'Erfasse die Übungsziele';
+    $('matchLabel').textContent = match.mode === 'breakthrough' ? 'DURCHBRUCH' : 'VORHERRSCHAFT';
     $('result').hidden = $('respawn').hidden = $('damageFlash').hidden = true;
     for (const shell of shells) scene.remove(shell.mesh); shells.length = 0;
     for (const particle of particles) scene.remove(particle.mesh); particles.length = 0;
@@ -379,9 +430,17 @@
     $('score').textContent = '0 / 5 ZIELE GETROFFEN';
     updateHud();
   }
+  function objectiveTitle() {
+    if (match.mode !== 'breakthrough') return 'Erobere Punkt A';
+    const letter = 'AB'[Math.min(match.stage, 1)];
+    return match.attacker === 'blue' ? `Erobere Punkt ${letter}` : `Halte Punkt ${letter}`;
+  }
+  let previousStage = 0, lineup = null;
+  // A new random pairing for each battle; the garage keeps a fixed line-up.
+  function rollLineup() { const pool = Systems.VEHICLES; lineup = [pool[Math.floor(random() * pool.length)], pool[Math.floor(random() * pool.length)]]; }
   function updateTank() {
-    tank.root.rotation.y = hullYaw; tank.turret.rotation.y = turretYaw - hullYaw;
-    tank.gun.position.z = -1.25 + recoil * .24;
+    settle(player, hullYaw); tank.turret.rotation.y = turretYaw - hullYaw;
+    tank.gun.position.z = player.gunBase + recoil * .24;
   }
   let lockTimer, lockAttempt = 0, fallbackInput = false, lockUnavailable = false;
   let edgeX = 0, edgeY = 0;
@@ -405,7 +464,6 @@
     // A denied or unanswered lock request must never trap the player in a pause loop.
     const attempt = ++lockAttempt;
     mode = 'locking'; keys.clear(); $('menu').hidden = true; $('pause').hidden = true; $('result').hidden = true; $('hud').hidden = false; $('pauseButton').hidden = false; document.body.classList.add('playing');
-    initAudio();
     if (touchMode) { beginPlaying(); return; }
     if (document.pointerLockElement === $('world')) { beginPlaying(); return; }
     if (lockUnavailable && !retryLock) { beginPlaying(true); return; }
@@ -423,24 +481,51 @@
     clearTimeout(lockTimer); lockAttempt++; edgeX = edgeY = 0;
     mode = 'paused'; keys.clear(); releaseTouch(); zoom = false; $('pause').hidden = false;
     document.body.classList.remove('pointer-locked', 'aim-active');
-    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
     if (document.pointerLockElement) document.exitPointerLock();
   }
-  start.onclick = () => { gameType = 'battle'; reset(); play(); notify('Erobere Punkt A · Blau ist dein Team', 6); showTutorial(false); };
+  start.onclick = () => {
+    if (selectedVehicle === 'dachs' && dachsLocked()) return;
+    if (olympia) {
+      if (olympiaVersuchWeg()) return olympiaMenue();
+      try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {}
+      seed = olympia.startwert; olympiaMenue();
+    }
+    gameType = 'battle'; rollLineup(); reset(); play(); notify(`${objectiveTitle()} · Blau ist dein Team`, 6); showTutorial(false);
+  };
+  function olympiaVersuchWeg() { try { return localStorage.getItem(olympia.versuchKey) === '1'; } catch (_) { return false; } }
+  function zurOlympiade() { try { sessionStorage.removeItem('iron-horizon-olymp'); } catch (_) {} location.href = olympia.info.z || '/'; }
+  // Menü in der Olympiade: feste Auswahl, Hinweis auf die Wertung, ein Versuch
+  function olympiaMenue() {
+    if (!olympia) return;
+    const i = olympia.info, weg = olympiaVersuchWeg();
+    for (const id of ['mapSelect', 'missionSelect', 'difficultySelect', 'selectLuchs', 'selectKeiler', 'selectDachs']) $(id).disabled = true;
+    $('mapSelect').value = selectedMap; $('missionSelect').value = mission; $('difficultySelect').value = difficulty;
+    const card = $('olympCard'); card.hidden = false;
+    card.innerHTML = `<b>🏅 ${i.ti || 'Olympiade'} · Disziplin ${i.nr}/${i.von}</b>Gefechts-Challenge: ${IronMaps.levels[selectedMap].name}, ${Systems.profiles[selectedVehicle].name}, Gegner Veteran. Alle fahren dieselbe Schlacht.`
+      + `<small>SIEG 1000 · ABSCHUSS 300 · TREFFER 50 · SEKUNDE AM PUNKT 5 · EIGENER VERLUST −150 · EIN VERSUCH</small>`;
+    if (weg) {
+      start.disabled = false; start.firstChild.textContent = 'ZURÜCK ZUR OLYMPIADE ';
+      start.onclick = zurOlympiade;
+      card.innerHTML += '<small>DEIN VERSUCH IST SCHON GESPIELT.</small>';
+    }
+  }
+  if (olympia) fetch('/api/olymp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: olympia.ticket, art: 'da' }) })
+    .then(r => r.json()).then(d => { if (d.schonGespielt) { try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {} olympiaMenue(); } }).catch(() => {});
   $('trainingButton').onclick = () => { gameType = 'training'; reset(); play(); notify(touchMode ? 'Links fahren · rechts wischen zum Zielen · FEUER' : 'WASD fahren · Maus zielen · Linksklick feuern', 6); showTutorial(false); };
   $('controlsButton').onclick = () => { showTutorial(true); play(); };
   $('resumeButton').onclick = () => play();
   $('retryMouseButton').onclick = () => play(true);
-  $('resetButton').onclick = () => { reset(); play(); notify(gameType === 'battle' ? 'Neues Gefecht · Erobere Punkt A' : 'Neue Übung · 5 Ziele warten auf dich'); };
-  $('rematchButton').onclick = () => { reset(); play(); };
+  $('resetButton').onclick = () => { if (gameType === 'battle') rollLineup(); reset(); play(); notify(gameType === 'battle' ? `Neues Gefecht · ${objectiveTitle()}` : 'Neue Übung · 5 Ziele warten auf dich'); };
+  $('rematchButton').onclick = () => { rollLineup(); reset(); play(); };
   function garage() {
-    mode = 'menu'; clearTimeout(lockTimer); lockAttempt++; keys.clear(); releaseTouch(); edgeX = edgeY = 0; tutorialTime = 0; $('tutorial').hidden = true;
+    mode = 'menu'; clearTimeout(lockTimer); lockAttempt++; keys.clear(); releaseTouch(); edgeX = edgeY = 0; tutorialTime = 0; $('tutorial').hidden = true; lineup = null;
     if (document.pointerLockElement) document.exitPointerLock();
-    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
     reset(); $('result').hidden = $('hud').hidden = $('pause').hidden = $('pauseButton').hidden = true; $('menu').hidden = false;
     document.body.classList.remove('playing', 'pointer-locked', 'aim-active'); targets.forEach(t => { t.label.hidden = true; });
   }
   $('menuButton').onclick = $('garageButton').onclick = garage;
+  // In der Olympiade kein Neustart und kein Abbruch mitten im Gefecht
+  if (olympia) { $('resetButton').hidden = true; $('garageButton').hidden = true; }
   $('pauseButton').onclick = pause;
   document.addEventListener('pointerlockchange', () => {
     clearTimeout(lockTimer);
@@ -499,7 +584,11 @@
   let tutorialTime = 0;
   function showTutorial(force) {
     if (!force && introSeen) return;
-    $('tutorialGoal').textContent = gameType === 'battle' ? 'Erobere Punkt A: 10 Sekunden allein im Kreis. Solange dein Team ihn hält, verliert der Gegner alle 2 Sekunden ein Ticket.' : 'Triff die fünf Übungsziele. Hier schießt niemand zurück.';
+    $('tutorialGoal').textContent = gameType !== 'battle' ? 'Triff die fünf Übungsziele. Hier schießt niemand zurück.'
+      : match.mode === 'breakthrough' ? match.attacker === 'blue' ? 'Durchbruch: Erobere Punkt A, dann Punkt B. Ohne Verteidiger im Kreis dauert es 10 Sekunden, gegen Verteidiger 30 – dafür müsst ihr doppelt so viele sein. Jeder Punkt bringt 3 Minuten.' : `Durchbruch: Halte die Angreifer auf. Solange ihr im Kreis nicht in doppelter Unterzahl seid, stoppt ihre Eroberung. Sie haben ${IronBattle.Breakthrough.TICKETS} Tickets und nur begrenzt Zeit.`
+      : 'Erobere Punkt A: 10 Sekunden allein im Kreis. Solange dein Team ihn hält, verliert der Gegner alle 2 Sekunden ein Ticket.';
+    $('tutorialBody').querySelector('.dachs-tip')?.remove();
+    if (player.profile.traverse) { const tip = document.createElement('li'); tip.className = 'dachs-tip'; tip.innerHTML = '<b>Dachs</b>: Die Kanone schwenkt nur ±12°. Im Stand dreht sich die Wanne selbst zum Ziel.'; $('tutorialBody').prepend(tip); }
     $('tutorial').hidden = false; tutorialTime = 16; introSeen = true; saveSettings();
   }
   $('closeTutorial').onclick = () => { tutorialTime = 0; $('tutorial').hidden = true; };
@@ -578,20 +667,75 @@
     return [player, ...targets].some(v => v !== exclude && v.alive && Math.hypot(x - v.root.position.x, z - v.root.position.z) < 5.6);
   }
   function shortest(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
+  const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+  function ground(x, z) { return IronMaps.height(level, x, z); }
+  // Put a vehicle on the ground and tilt it to the slope (pitch front/back, roll left/right).
+  function settle(vehicle, yaw) {
+    const p = vehicle.root.position; p.y = ground(p.x, p.z);
+    if (!level.heightAt) { vehicle.root.rotation.set(0, yaw, 0); return; }
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const pitchAngle = Math.atan2(ground(p.x + fx * 2.4, p.z + fz * 2.4) - ground(p.x - fx * 2.4, p.z - fz * 2.4), 4.8);
+    const rollAngle = Math.atan2(ground(p.x + rx * 1.6, p.z + rz * 1.6) - ground(p.x - rx * 1.6, p.z - rz * 1.6), 3.2);
+    vehicle.root.rotation.set(pitchAngle, yaw, rollAngle);
+  }
+  // Uphill costs speed, downhill gives a little: factor for driving along yaw (direction ±1).
+  function slopeFactor(x, z, yaw, forward = 1) {
+    if (!level.heightAt) return 1;
+    const fx = -Math.sin(yaw) * forward, fz = -Math.cos(yaw) * forward;
+    return clamp(1 - (ground(x + fx * 2.4, z + fz * 2.4) - ground(x - fx * 2.4, z - fz * 2.4)) / 4.8 * 1.6, .45, 1.15);
+  }
+  // First point where a ray meets the ground (march + bisection), or null.
+  function groundRay(origin, dir, far) {
+    let previous = 0;
+    for (let t = 1.5; t <= far + 1.5; t += 1.5) {
+      const d = Math.min(t, far);
+      if (origin.y + dir.y * d <= ground(origin.x + dir.x * d, origin.z + dir.z * d)) {
+        let low = previous, high = d;
+        for (let i = 0; i < 8; i++) { const mid = (low + high) / 2; if (origin.y + dir.y * mid <= ground(origin.x + dir.x * mid, origin.z + dir.z * mid)) high = mid; else low = mid; }
+        return high;
+      }
+      previous = d; if (d === far) break;
+    }
+    return null;
+  }
+  // Terrain between two points hides them from each other (only relief maps have any).
+  function groundBlocks(a, b) {
+    if (!level.heightAt) return false;
+    const length = a.distanceTo(b), samples = Math.ceil(length / 4);
+    for (let i = 1; i < samples; i++) { const t = i / samples; if (a.y + (b.y - a.y) * t < ground(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t) + .25) return true; }
+    return false;
+  }
+  const pivot = new T.Vector3(), towards = new T.Vector3(), turretQuaternion = new T.Quaternion();
+  // Gun elevation towards a world point, measured in the (possibly tilted) turret frame.
+  function elevationTo(vehicle, point) {
+    vehicle.gun.getWorldPosition(pivot); towards.copy(point).sub(pivot);
+    vehicle.turret.getWorldQuaternion(turretQuaternion); towards.applyQuaternion(turretQuaternion.invert());
+    return Math.atan2(towards.y, Math.hypot(towards.x, towards.z));
+  }
   function aim(dt) {
     aimRay.setFromCamera(new T.Vector2(0, 0), camera);
-    const hits = aimRay.intersectObjects(shotObjects(player), false);
-    if (hits.length) aimPoint.copy(hits[0].point); else aimPoint.copy(aimRay.ray.origin).addScaledVector(aimRay.ray.direction, 350);
-    temp.copy(aimPoint).sub(tank.root.position); temp.y -= 2.05;
-    const wanted = Math.atan2(-temp.x, -temp.z), difference = shortest(wanted - turretYaw), rate = player.profile.turret * Systems.turretRate(player.systems);
-    turretYaw += Math.max(-rate * dt, Math.min(rate * dt, difference));
-    tank.gun.rotation.x = Math.max(-.19, Math.min(.35, Math.atan2(temp.y, Math.hypot(temp.x, temp.z))));
+    const hits = aimRay.intersectObjects(shotObjects(player), false), groundDistance = groundRay(aimRay.ray.origin, aimRay.ray.direction, 350);
+    const distance = Math.min(hits.length ? hits[0].distance : Infinity, groundDistance ?? Infinity, 350);
+    aimPoint.copy(aimRay.ray.origin).addScaledVector(aimRay.ray.direction, distance);
+    temp.copy(aimPoint).sub(tank.root.position);
+    const profile = player.profile, rate = profile.turret * Systems.turretRate(player.systems);
+    let wanted = Math.atan2(-temp.x, -temp.z);
+    if (profile.traverse) {
+      // Turretless: when the target leaves the ±12° arc and the driver is not steering, the hull swings round.
+      const outside = shortest(wanted - hullYaw), mobility = Systems.mobility(player.systems);
+      if (Math.abs(outside) > profile.traverse && player.alive && !steerInput && !throttleInput && Math.abs(velocity) < 2 && mobility > 0) hullYaw += clamp(outside, -profile.turn * mobility * dt, profile.turn * mobility * dt);
+      wanted = hullYaw + clamp(shortest(wanted - hullYaw), -profile.traverse, profile.traverse);
+    }
+    turretYaw += clamp(shortest(wanted - turretYaw), -rate * dt, rate * dt);
+    if (profile.traverse) turretYaw = hullYaw + clamp(shortest(turretYaw - hullYaw), -profile.traverse, profile.traverse);
+    updateTank(); tank.root.updateMatrixWorld(true);
+    tank.gun.rotation.x = clamp(elevationTo(player, aimPoint), -.19, .35);
   }
   function playerSpread() { return Systems.spread(player.profile, velocity / player.profile.speed, steerInput); }
   function fire() {
     if (reload > 0 || mode !== 'playing' || !player.alive) return;
     reload = player.profile.reload; recoil = 1; scene.updateMatrixWorld(true);
-    launchShell(player, playerSpread()); tone(115, .36, .55, 23);
+    launchShell(player, playerSpread());
   }
   function launchShell(vehicle, spread = 0) {
     vehicle.shield = 0; vehicle.systems.repair = 0;
@@ -608,7 +752,7 @@
     puff(origin, vehicle === player ? 13 : 6, 1);
   }
   function impact(hit, shell) {
-    puff(hit.point, 17, hit.object.userData.target === undefined ? 0 : 1); tone(180, .15, .17, 45);
+    puff(hit.point, 17, hit.object.userData.target === undefined ? 0 : 1);
     const targetId = hit.object.userData.target;
     if (gameType === 'training' && targetId !== undefined) {
       const target = targets[targetId];
@@ -625,137 +769,180 @@
       // Angle between the shell path and the struck plate decides between ricochet and penetration.
       const normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : path.clone().negate();
       if (Systems.ricochet(Math.abs(normal.dot(path)))) {
-        tone(1400, .22, .07, 500); sparks(hit.point, 7, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
+        sparks(hit.point, 7, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
         if (attacker === player) hitMarker('ricochet', 'ABPRALLER');
         if (attacker === player) { stats.ricochets++; notify('ABPRALLER · ZU FLACHER WINKEL\nZiele möglichst senkrecht auf die Panzerung.', 2); }
-        if (victim === player) notify('ABPRALLER AN DEINER PANZERUNG', 1.6);
+        if (victim === player) { stats.bounced++; notify('ABPRALLER AN DEINER PANZERUNG', 1.6); }
         return;
       }
       const forward = new T.Vector3(-Math.sin(victim.yaw), 0, -Math.cos(victim.yaw));
       const incidence = forward.dot(path.clone().setY(0).normalize().negate()), facing = Systems.side(incidence);
-      const moduleHit = Systems.hitModule(victim.systems, victim.root.worldToLocal(hit.point.clone()));
+      const moduleHit = Systems.hitModule(victim.systems, victim.root.worldToLocal(hit.point.clone()), victim.profile);
       const damage = Systems.damage(incidence, attacker.profile, victim.profile, moduleHit);
       const where = { front: 'FRONT', side: 'SEITE', rear: 'HECK' }[facing];
-      const moduleText = { tracks: 'KETTE BESCHÄDIGT', engine: 'MOTOR BESCHÄDIGT', turret: 'TURMANTRIEB BESCHÄDIGT' }[moduleHit];
+      const moduleText = { tracks: 'KETTE BESCHÄDIGT', engine: 'MOTOR BESCHÄDIGT', turret: victim.profile.traverse ? 'RICHTANTRIEB BESCHÄDIGT' : 'TURMANTRIEB BESCHÄDIGT' }[moduleHit];
       victim.hp = Math.max(0, victim.hp - damage); sparks(hit.point, 10);
       if (attacker === player && victim.hp > 0) hitMarker(moduleHit ? 'module' : 'hit', moduleText || `−${damage}`);
       if (attacker === player) { stats.hits++; notify(`DURCHSCHLAG · ${where} · −${damage}${moduleText ? `\n${moduleText}` : ''}`, 2); }
       if (victim === player) {
-        damageTime = .45; tone(60, .3, .35, 22); player.lastHit = { by: attacker, where };
-        if (moduleHit) notify({ tracks: 'KETTE AUSGEFALLEN · STILLSTEHEN & REPARIEREN\nRauch gibt dir Deckung.', engine: 'MOTOR BESCHÄDIGT · LEISTUNG REDUZIERT\nStillstehen und reparieren.', turret: 'TURMANTRIEB BESCHÄDIGT · TURM DREHT LANGSAM\nStillstehen und reparieren.' }[moduleHit], 4);
+        damageTime = .45; player.lastHit = { by: attacker, where };
+        if (moduleHit) notify({ tracks: 'KETTE AUSGEFALLEN · STILLSTEHEN & REPARIEREN\nRauch gibt dir Deckung.', engine: 'MOTOR BESCHÄDIGT · LEISTUNG REDUZIERT\nStillstehen und reparieren.', turret: `${player.profile.traverse ? 'RICHTANTRIEB' : 'TURMANTRIEB'} BESCHÄDIGT · KANONE SCHWENKT LANGSAM\nStillstehen und reparieren.` }[moduleHit], 4);
       }
       if (victim !== player || autopilot) {
         victim.threat = 5;
         // Hurt bots sometimes cover their retreat with smoke.
-        if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && matchDifficulty.smoke && random() < .5) deploySmoke(victim);
+        if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && skillOf(victim).smoke && random() < .5) deploySmoke(victim);
       }
       if (victim.hp === 0) {
         victim.alive = false; victim.respawn = 6; victim.root.visible = false;
-        puff(victim.root.position.clone().setY(1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
+        puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
         if (victim === player) { stats.deaths++; velocity = 0; zoom = false; events.push({ type: 'death', where }); }
         else { victim.label.hidden = true; victim.ring.visible = false; }
         if (attacker === player) {
           hitMarker('kill', 'AUSGESCHALTET');
-          const nearPoint = Math.hypot(victim.root.position.x - level.capture.x, victim.root.position.z - level.capture.z) < level.capture.radius + 8;
-          events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && (match.owner !== 'red' || match.contested) });
+          const point = activePoint(), nearPoint = Math.hypot(victim.root.position.x - point.x, victim.root.position.z - point.z) < point.radius + 8;
+          const pressure = match.mode === 'breakthrough' ? match.attacker === 'red' || match.contested : match.owner !== 'red' || match.contested;
+          events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && pressure });
         }
         if (attacker === player) { stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\nGegner verliert 5 Tickets.`, 3); }
       }
     }
   }
   function spawnCoordinates(vehicle) {
+    if (match.mode === 'breakthrough' && match.stage > 0 && vehicle.team === match.attacker) {
+      const [x, z] = layoutFor(Math.min(match.stage, btPoints.length - 1), vehicle.team).spawns[slotIndex(vehicle)];
+      return [x, 0, z];
+    }
     const [x, z] = vehicle === player ? level.playerRespawn : level.spawns[vehicle.id];
     return [x, 0, z];
   }
   function respawnVehicle(vehicle) {
     const base = spawnCoordinates(vehicle);
-    const candidates = [[base[0], base[2]], [base[0] + 7, base[2]], [base[0] - 7, base[2]], [base[0], base[2] + 9]];
+    // Fallback spots mirror between the teams as well (sideways turned around on point-symmetric maps).
+    const back = vehicle.team === 'blue' ? 1 : -1, side = level.symmetry === 'point' ? back : 1;
+    const candidates = [[base[0], base[2]], [base[0] + 7 * side, base[2]], [base[0] - 7 * side, base[2]], [base[0], base[2] + 9 * back]];
     const place = candidates.find(([x, z]) => !blocked(x, z, vehicle));
     if (!place) { vehicle.respawn = .5; return; }
-    vehicle.root.position.set(place[0], 0, place[1]); vehicle.root.visible = true;
+    vehicle.root.position.set(place[0], 0, place[1]); vehicle.root.visible = true; settle(vehicle, vehicle.team === 'blue' ? 0 : Math.PI);
     Object.assign(vehicle, { alive: true, hp: 100, shield: 3, respawn: 0, enemy: null, reload: 1, navigationTimer: 0, thinkTimer: 0, path: [], reaction: 1, systems: Systems.fresh() });
     if (vehicle === player) { velocity = reload = 0; hullYaw = turretYaw = viewYaw = 0; pitch = -.16; player.lastHit = null; notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3); if (autopilot) Object.assign(player, freshTactics(player), { yaw: 0, turretYaw: 0 }); }
-    else { Object.assign(vehicle, freshTactics(vehicle)); vehicle.yaw = vehicle.turretYaw = vehicle.team === 'blue' ? 0 : Math.PI; vehicle.root.rotation.y = vehicle.yaw; vehicle.turret.rotation.y = 0; }
+    else { Object.assign(vehicle, freshTactics(vehicle)); vehicle.yaw = vehicle.turretYaw = vehicle.team === 'blue' ? 0 : Math.PI; settle(vehicle, vehicle.yaw); vehicle.turret.rotation.y = 0; }
   }
   // Per-life tactical state: fast tanks sometimes take a wide flank before joining the fight.
   function freshTactics(bot) {
-    const flanks = level.flanks[bot.team];
-    return { flank: matchDifficulty.flank && bot.profile.id === 'luchs' && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
+    const flanks = level.flanks[bot.team], attacking = match.mode !== 'breakthrough' || (match.attacker === bot.team && match.stage === 0);
+    return { flank: attacking && skillOf(bot).flank && bot.profile.id === 'luchs' && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
   }
   function canSee(from, to) {
     if (!from.alive || !to.alive || from.root.position.distanceTo(to.root.position) > 115) return false;
-    const origin = from.root.position.clone().setY(2.35), destination = to.root.position.clone().setY(1.45);
-    if (Systems.smokeBlocks(origin, destination, smokeClouds)) return false;
+    const origin = from.root.position.clone(), destination = to.root.position.clone(); origin.y += 2.35; destination.y += 1.45;
+    if (Systems.smokeBlocks(origin, destination, smokeClouds) || groundBlocks(origin, destination)) return false;
     const delta = destination.sub(origin); combatRay.set(origin, delta.clone().normalize()); combatRay.far = delta.length() + 1;
     const hits = combatRay.intersectObjects(shotObjects(from), false);
     return hits.length > 0 && hits[0].object.userData.vehicle === to;
   }
   const guards = { blue: null, red: null };
-  const inZone = vehicle => vehicle.alive && Math.hypot(vehicle.root.position.x - level.capture.x, vehicle.root.position.z - level.capture.z) < level.capture.radius;
+  let btPoints = [];
+  const layouts = new Map();
+  function activePoint() { return match.mode === 'breakthrough' ? btPoints[Math.min(match.stage, btPoints.length - 1)] : level.capture; }
+  const slotIndex = vehicle => vehicle === player ? 2 : vehicle.number - 1;
+  // Durchbruch positions are generated around each point and nudged out of obstacles (also on the nav grid).
+  // Red gets the exact mirror image of blue's positions, so both sides fight on the same ground.
+  function layoutFor(index, team) {
+    const key = `${level.id}-${index}-${team}-${match.attacker}`;
+    if (!layouts.has(key)) {
+      const shift = IronBattle.gridShift(6, 136, level.capture), snap = (value, offset) => Math.round((value - offset + 136) / 6) * 6 - 136 + offset;
+      const bad = (x, z) => staticBlocked(x, z, 3.4) || staticBlocked(snap(x, shift.x), snap(z, shift.z), 2.8);
+      const point = btPoints[index], mirrored = team === 'red', [px, pz] = mirrored ? IronMaps.mirror(level, point.x, point.z) : [point.x, point.z];
+      const raw = IronBattle.pointLayout({ x: px, z: pz }, 1);
+      layouts.set(key, Object.fromEntries(Object.entries(raw).map(([name, list]) => [name, list.map(([x, z]) => { const free = IronBattle.freeNear(x, z, bad); return mirrored ? IronMaps.mirror(level, ...free) : free; })])));
+    }
+    return layouts.get(key);
+  }
+  const inZone = vehicle => { const point = activePoint(); return vehicle.alive && Math.hypot(vehicle.root.position.x - point.x, vehicle.root.position.z - point.z) < point.radius; };
   // One bot per team stays on a secured point; the others take overwatch positions.
   function isGuard(bot) {
-    if (bot === player) return false;
+    // A human player is never assigned a role; on autopilot the player's tank is a bot like any other.
+    if (bot === player && !autopilot) return false;
     if (bot.team === 'blue' && inZone(player) && !autopilot) return false;
     let guard = guards[bot.team];
     if (!guard?.alive) {
-      guard = targets.filter(t => t.team === bot.team && t.alive).sort((a, b) => Math.hypot(a.root.position.x - level.capture.x, a.root.position.z - level.capture.z) - Math.hypot(b.root.position.x - level.capture.x, b.root.position.z - level.capture.z))[0] || null;
+      const point = activePoint();
+      guard = [...(autopilot ? [player] : []), ...targets].filter(t => t.team === bot.team && t.alive).sort((a, b) => Math.hypot(a.root.position.x - point.x, a.root.position.z - point.z) - Math.hypot(b.root.position.x - point.x, b.root.position.z - point.z))[0] || null;
       guards[bot.team] = guard;
     }
     return guard === bot;
   }
   function updateBot(bot, dt) {
     bot.reload = Math.max(0, bot.reload - dt); bot.navigationTimer -= dt; bot.thinkTimer -= dt; bot.threat = Math.max(0, bot.threat - dt);
-    const repairing = Systems.damaged(bot.systems);
+    // Broken tracks or engine: stop and repair. A damaged turret drive only slows aiming, so the bot
+    // keeps fighting while it sees an enemy and repairs once the fight is over.
+    const repairing = Systems.damaged(bot.systems) && (Systems.mobility(bot.systems) < 1 || !bot.enemy?.alive);
     Systems.repair(bot.systems, dt, repairing, false);
     if (bot.flank && Math.hypot(bot.root.position.x - bot.flank[0], bot.root.position.z - bot.flank[1]) < 10) bot.flank = null;
-    const holds = level.holds[bot.team];
-    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened: bot.threat > 0 || (matchDifficulty.coverReload && bot.hp < 60 && bot.reload > 1.5 && !!bot.enemy), guard: isGuard(bot), owner: match.owner, contested: match.contested, progress: match.progress, capture: level.capture, slot: bot === player ? [level.capture.x, level.capture.z + 5] : level.goals[bot.id], hold: holds[bot.holdIndex % holds.length], flank: bot.flank });
+    const skill = skillOf(bot), point = activePoint(), threatened = bot.threat > 0;
+    let slot, hold, owner = match.owner, progress = match.progress;
+    if (match.mode === 'breakthrough') {
+      const layout = layoutFor(Math.min(match.stage, btPoints.length - 1), bot.team); slot = layout.slots[slotIndex(bot)]; hold = layout.holds[slotIndex(bot)];
+      // Defenders treat an untouched point as "secured"; attackers never do.
+      progress = (bot.team === 'blue' ? 1 : -1) * (1 - match.progress);
+    } else {
+      const holds = level.holds[bot.team];
+      slot = bot === player ? [level.capture.x, level.capture.z + 5] : level.goals[bot.id]; hold = holds[bot.holdIndex % holds.length];
+    }
+    // Flanks only pay off against a held point; in the race for a free point the direct way wins.
+    const flank = owner && owner !== bot.team ? bot.flank : null;
+    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened, guard: isGuard(bot), owner, contested: match.contested, progress, capture: point, slot, hold, flank });
     const goal = { x: objective.point[0], z: objective.point[1] };
     if (bot.goalPoint !== objective.point) { bot.goalPoint = objective.point; bot.goalKind = objective.kind; bot.navigationTimer = 0; }
     if (bot.navigationTimer <= 0) {
-      const clearance = (x, z) => staticBlocked(x, z, 3.2);
-      bot.path = IronBattle.smoothPath(bot.root.position, IronBattle.findPath(bot.root.position, goal, staticBlocked), clearance);
+      const clearance = (x, z) => staticBlocked(x, z, 3.2), route = IronBattle.findPath(bot.root.position, goal, staticBlocked, 6, 136, level.capture);
+      // The grid route ends in the goal's cell; finish on the exact goal, or bots stop up to 4 m short
+      // (and, where the goal lies on a cell border, short on one side only).
+      if (IronBattle.clearLine(route.length ? route[route.length - 1] : bot.root.position, goal, clearance)) route.push(goal);
+      bot.path = IronBattle.smoothPath(bot.root.position, route, clearance);
       bot.navigationTimer = 2.5 + (bot === player ? 1 : bot.id) * .2;
     }
     const nearGoal = Math.hypot(bot.root.position.x - goal.x, bot.root.position.z - goal.z) < 3;
     while (bot.path.length && Math.hypot(bot.path[0].x - bot.root.position.x, bot.path[0].z - bot.root.position.z) < 1.8) bot.path.shift();
-    // The heavy tank halts briefly to fire accurately; the light one shoots on the move.
-    const halting = bot.profile.id === 'keiler' && bot.enemy?.alive && bot.reload < .7 && bot.reaction < .4;
+    // The heavy tank halts briefly to fire accurately; the light one shoots on the move. A turretless
+    // tank must stop early, because it turns its whole hull towards the target before it can fire.
+    const halting = bot.profile.id !== 'luchs' && bot.enemy?.alive && bot.reload < (bot.profile.traverse ? 2.5 : .7) && bot.reaction < .4;
     bot.speedNow = 0;
     if (!nearGoal && bot.path.length && !repairing && !halting) {
       const waypoint = bot.path[0], desired = Math.atan2(bot.root.position.x - waypoint.x, bot.root.position.z - waypoint.z);
       const delta = shortest(desired - bot.yaw); bot.yaw += Math.max(-dt * bot.profile.turn, Math.min(dt * bot.profile.turn, delta));
-      const pace = (Math.abs(delta) < .4 ? Math.min(7.5, bot.profile.speed * .7) : 2.5) * Systems.mobility(bot.systems);
+      const pace = (Math.abs(delta) < .4 ? Math.min(7.5, bot.profile.speed * .7) : 2.5) * Systems.mobility(bot.systems) * slopeFactor(bot.root.position.x, bot.root.position.z, bot.yaw);
       const nx = bot.root.position.x - Math.sin(bot.yaw) * pace * dt, nz = bot.root.position.z - Math.cos(bot.yaw) * pace * dt;
       if (!blocked(nx, nz, bot)) {
-        bot.root.position.set(nx, 0, nz); bot.stuck = 0; bot.speedNow = pace; for (const wheel of bot.wheels) wheel.rotation.x += pace * dt;
+        bot.root.position.x = nx; bot.root.position.z = nz; bot.stuck = 0; bot.speedNow = pace; for (const wheel of bot.wheels) wheel.rotation.x += pace * dt;
         bot.dust = (bot.dust || 0) + dt;
-        if (pace > 5 && bot.dust > .22 && particles.length < 110) { bot.dust = 0; temp.set(nx + Math.sin(bot.yaw) * 2.4, .3, nz + Math.cos(bot.yaw) * 2.4); puff(temp, 1, 2); }
+        if (pace > 5 && bot.dust > .22 && particles.length < 110) { bot.dust = 0; temp.set(nx + Math.sin(bot.yaw) * 2.4, 0, nz + Math.cos(bot.yaw) * 2.4); temp.y = ground(temp.x, temp.z) + .3; puff(temp, 1, 2); }
       }
       else {
         bot.stuck += dt;
         // Back off and re-route around a stopped vehicle instead of pushing forever.
         if (bot.stuck > .8) {
           const reverseX = bot.root.position.x + Math.sin(bot.yaw + .6) * 3 * dt, reverseZ = bot.root.position.z + Math.cos(bot.yaw + .6) * 3 * dt;
-          if (!blocked(reverseX, reverseZ, bot)) bot.root.position.set(reverseX, 0, reverseZ);
+          if (!blocked(reverseX, reverseZ, bot)) { bot.root.position.x = reverseX; bot.root.position.z = reverseZ; }
           if (bot.stuck > 2.4) {
             const crowded = (x, z) => staticBlocked(x, z) || [player, ...targets].some(v => v !== bot && v.alive && Math.hypot(x - v.root.position.x, z - v.root.position.z) < 7);
-            bot.path = IronBattle.findPath(bot.root.position, goal, crowded);
+            bot.path = IronBattle.findPath(bot.root.position, goal, crowded, 6, 136, level.capture);
+            if (bot.path.length && IronBattle.clearLine(bot.path[bot.path.length - 1], goal, crowded)) bot.path.push(goal);
             bot.navigationTimer = 4; bot.stuck = 0;
           }
         }
       }
     } else if (nearGoal && !repairing) {
       // In position: turn the strong front plate towards the threat or the objective.
-      const watch = bot.enemy?.alive ? bot.enemy.root.position : level.capture;
+      const watch = bot.enemy?.alive ? bot.enemy.root.position : point;
       const dx = watch.x - bot.root.position.x, dz = watch.z - bot.root.position.z;
       if (Math.hypot(dx, dz) > 6) bot.yaw += Math.max(-dt * bot.profile.turn * .6, Math.min(dt * bot.profile.turn * .6, shortest(Math.atan2(-dx, -dz) - bot.yaw)));
     }
-    bot.root.rotation.y = bot.yaw;
     if (bot.thinkTimer <= 0) {
       const previousEnemy = bot.enemy;
       bot.enemy = [player, ...targets].filter(v => v.team !== bot.team && v.alive).sort((a, b) => bot.root.position.distanceToSquared(a.root.position) - bot.root.position.distanceToSquared(b.root.position)).find(v => canSee(bot, v)) || null;
-      const [fastest, slowest] = matchDifficulty.reaction;
+      const [fastest, slowest] = skill.reaction;
       if (bot.enemy !== previousEnemy) bot.reaction = fastest + random() * (slowest - fastest);
       if (bot.enemy) bot.lastSeen = { x: bot.enemy.root.position.x, z: bot.enemy.root.position.z, time: 3 };
       bot.visibleToPlayer = canSee(player, bot); bot.thinkTimer = .3 + random() * .15;
@@ -764,22 +951,32 @@
     if (bot.lastSeen) { bot.lastSeen.time -= dt; if (bot.lastSeen.time <= 0) bot.lastSeen = null; }
     // Turret: current enemy, else the last known position for a few seconds, else the objective when close.
     let desiredYaw = bot.yaw;
-    const look = bot.enemy?.alive ? bot.enemy.root.position : bot.lastSeen || (Math.hypot(bot.root.position.x - level.capture.x, bot.root.position.z - level.capture.z) < 45 && !bot.speedNow ? level.capture : null);
+    const look = bot.enemy?.alive ? bot.enemy.root.position : bot.lastSeen || (Math.hypot(bot.root.position.x - point.x, bot.root.position.z - point.z) < 45 && !bot.speedNow ? point : null);
+    let aimAt = null;
     if (look) {
       const dx = look.x - bot.root.position.x, dz = look.z - bot.root.position.z, distance = Math.hypot(dx, dz);
       if (distance > 4) desiredYaw = Math.atan2(-dx, -dz);
       // Ace bots aim low at tracks and hull sides when the target is not facing them.
-      let drop = -.6;
-      if (matchDifficulty.lowAim && bot.enemy?.alive) { const facing = Math.abs(Math.cos(bot.enemy.yaw - Math.atan2(-dx, -dz))); if (facing < .55) drop = -1; }
-      bot.gun.rotation.x = Math.atan2(drop + 1.5 * (distance / 95) ** 2, Math.max(distance, 1));
+      let aimHeight = 1.45;
+      if (skill.lowAim && bot.enemy?.alive) { const facing = Math.abs(Math.cos(bot.enemy.yaw - Math.atan2(-dx, -dz))); if (facing < .55) aimHeight = 1.05; }
+      aimAt = temp.set(look.x, (look.y ?? ground(look.x, look.z)) + aimHeight + 1.5 * (distance / 95) ** 2, look.z).clone();
     }
-    const turretRate = bot.profile.turret * Systems.turretRate(bot.systems);
-    bot.turretYaw += Math.max(-dt * turretRate, Math.min(dt * turretRate, shortest(desiredYaw - bot.turretYaw)));
-    bot.turret.rotation.y = bot.turretYaw - bot.yaw;
+    const profile = bot.profile, turretRate = profile.turret * Systems.turretRate(bot.systems);
+    let wantedTurret = desiredYaw;
+    if (profile.traverse) {
+      // Turretless: swing the whole hull when the target is outside the gun's arc and the bot stands.
+      const outside = shortest(desiredYaw - bot.yaw), mobility = Systems.mobility(bot.systems);
+      if (look && Math.abs(outside) > profile.traverse && !bot.speedNow && mobility > 0) bot.yaw += clamp(outside, -profile.turn * mobility * dt, profile.turn * mobility * dt);
+      wantedTurret = bot.yaw + clamp(shortest(desiredYaw - bot.yaw), -profile.traverse, profile.traverse);
+    }
+    bot.turretYaw += clamp(shortest(wantedTurret - bot.turretYaw), -dt * turretRate, dt * turretRate);
+    if (profile.traverse) bot.turretYaw = bot.yaw + clamp(shortest(bot.turretYaw - bot.yaw), -profile.traverse, profile.traverse);
+    settle(bot, bot.yaw); bot.turret.rotation.y = bot.turretYaw - bot.yaw;
+    // Uses last step's world matrices (updated once per step for the whole scene); one frame of lag is invisible.
+    if (aimAt) bot.gun.rotation.x = clamp(elevationTo(bot, aimAt), -.25, .4);
     if (!repairing && bot.enemy?.alive && bot.reload <= 0 && bot.reaction <= 0 && Math.abs(shortest(desiredYaw - bot.turretYaw)) < .05 && canSee(bot, bot.enemy)) {
-      bot.root.updateMatrixWorld(true); launchShell(bot, matchDifficulty.error + Systems.spread(bot.profile, bot.speedNow / bot.profile.speed));
-      bot.reload = bot.profile.reload + 1 + random();
-      if (bot.root.position.distanceTo(tank.root.position) < 65) tone(90, .2, .07, 30);
+      bot.root.updateMatrixWorld(true); launchShell(bot, skill.error + Systems.spread(bot.profile, bot.speedNow / bot.profile.speed));
+      bot.reload = bot.profile.reload + skill.reload + random();
     }
   }
   function updateBattle(dt) {
@@ -789,13 +986,27 @@
       else if (vehicle !== player) updateBot(vehicle, dt);
       else if (autopilot) { updateBot(player, dt); hullYaw = player.yaw; turretYaw = player.turretYaw; }
     }
-    const inside = [player, ...targets].filter(v => v.alive && Math.hypot(v.root.position.x - level.capture.x, v.root.position.z - level.capture.z) < level.capture.radius);
+    const inside = [player, ...targets].filter(inZone), alone = inside.length === 1 && inside[0] === player;
     if (inside.includes(player)) stats.captureSeconds += dt;
     match.update(dt, inside.filter(v => v.team === 'blue').length, inside.filter(v => v.team === 'red').length);
-    if (match.owner === 'blue' && previousOwner !== 'blue' && inside.length === 1 && inside[0] === player) events.push({ type: 'capture' });
+    const teamColor = { blue: '#79b9d7', red: '#da8365' };
+    if (match.mode === 'breakthrough') {
+      if (match.stage !== previousStage) {
+        const letter = 'AB'[previousStage];
+        if (match.attacker === 'blue' && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+        if (!match.result) {
+          notify(match.attacker === 'blue' ? `PUNKT ${letter} EROBERT · +3:00\nWeiter zu Punkt B.` : `PUNKT ${letter} VERLOREN · +3:00 FÜR DEN GEGNER\nZurück zu Punkt B.`, 4);
+          guards.blue = guards.red = null; [player, ...targets].forEach(vehicle => { vehicle.navigationTimer = 0; });
+          $('objectiveTitle').textContent = objectiveTitle();
+        }
+        previousStage = match.stage;
+      }
+      zones.forEach((zone, i) => colorZone(zone, i < match.stage ? teamColor[match.attacker] : i === match.stage ? match.contested ? '#efb36c' : match.progress > .01 ? '#e9d08a' : teamColor[match.defender] : '#8d8a78'));
+    } else {
+      if (match.owner === 'blue' && previousOwner !== 'blue' && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+      colorZone(zones[0], match.contested ? '#efb36c' : teamColor[match.owner] || '#dfc18c');
+    }
     previousOwner = match.owner;
-    const color = match.contested ? '#efb36c' : match.owner === 'blue' ? '#79b9d7' : match.owner === 'red' ? '#da8365' : '#dfc18c';
-    captureRing.material.color.set(color); captureFlag.material.color.set(color).convertSRGBToLinear();
     if (match.result) finishMatch();
   }
   function finishMatch() {
@@ -803,14 +1014,38 @@
     if (autopilot) { mode = 'result'; return; }
     mode = 'result'; keys.clear(); zoom = false; velocity = 0; document.body.classList.remove('pointer-locked', 'aim-active');
     if (document.pointerLockElement) document.exitPointerLock();
-    if (engineGain && audio) { engineGain.gain.setTargetAtTime(0, audio.currentTime, .02); trackGain.gain.setTargetAtTime(0, audio.currentTime, .02); }
-    $('resultTitle').textContent = match.result === 'blue' ? `${level.name} gesichert.` : match.result === 'red' ? 'Gefecht verloren.' : 'Unentschieden.';
-    $('resultReason').textContent = `${match.time <= 0 ? 'Zeit abgelaufen.' : 'Ein Team hat keine Tickets mehr.'} Blau ${match.tickets.blue} : ${match.tickets.red} Rot.`;
+    if (match.mode === 'breakthrough') {
+      const attacking = match.attacker === 'blue', won = match.result === 'blue';
+      $('resultTitle').textContent = attacking ? won ? 'Durchbruch geschafft.' : 'Angriff gescheitert.' : won ? 'Stellung gehalten.' : 'Stellung verloren.';
+      $('resultReason').textContent = `${match.captured >= match.stages ? 'Punkt B ist gefallen.' : match.tickets[match.attacker] <= 0 ? 'Die Angreifer haben keine Tickets mehr.' : 'Zeit abgelaufen.'} ${match.captured} von ${match.stages} Punkten erobert, ${match.tickets[match.attacker]} Angriffstickets übrig.`;
+    } else {
+      $('resultTitle').textContent = match.result === 'blue' ? `${level.name} gesichert.` : match.result === 'red' ? 'Gefecht verloren.' : 'Unentschieden.';
+      $('resultReason').textContent = `${match.time <= 0 ? 'Zeit abgelaufen.' : 'Ein Team hat keine Tickets mehr.'} Blau ${match.tickets.blue} : ${match.tickets.red} Rot.`;
+    }
     $('resultStats').innerHTML = `<span>ABSCHÜSSE<b>${stats.kills}</b></span><span>WIRKSAME TREFFER<b>${stats.hits}</b></span><span>EIGENE VERLUSTE<b>${stats.deaths}</b></span><span>SEKUNDEN AM ZIEL<b>${Math.floor(stats.captureSeconds)}</b></span>`;
     const { moment, tip } = IronBattle.keyMoment(events, stats, match.result);
     $('keyMoment').textContent = moment || 'Kein Abschuss in diesem Gefecht.'; $('keyTip').textContent = tip || ''; $('keyTip').hidden = !tip;
     $('result').hidden = false; $('respawn').hidden = true; targets.forEach(t => { t.label.hidden = true; });
     recordRound();
+    if (olympia && gameType === 'battle') olympiaMelden();
+  }
+  // Ergebnis an den eigenen Server, der die Punkte rechnet und an die Olympiade meldet
+  let olympBox = null;
+  async function olympiaMelden() {
+    if (!olympBox) { olympBox = document.createElement('div'); olympBox.className = 'olymp-result'; $('rematchButton').before(olympBox); }
+    olympBox.innerHTML = '<span class="eyebrow">OLYMPIADE</span><strong>Wird gewertet …</strong>';
+    $('rematchButton').firstChild.textContent = 'ZURÜCK ZUR OLYMPIADE '; $('rematchButton').onclick = zurOlympiade; $('menuButton').hidden = true;
+    const werte = { result: match.result, kills: stats.kills, hits: stats.hits, deaths: stats.deaths, captureSeconds: stats.captureSeconds };
+    for (let versuch = 0; versuch < 4; versuch++) {
+      try {
+        const r = await fetch('/api/olymp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: olympia.ticket, art: 'ergebnis', werte }) });
+        const d = await r.json();
+        olympBox.innerHTML = `<span class="eyebrow">OLYMPIADE</span><strong>${d.punkte != null ? d.punkte.toLocaleString('de-DE') + ' Punkte' : 'Nicht gewertet'}</strong><p>${r.ok ? 'Eingetragen – zurück zur Olympiade, dort siehst du die Wertung.' : d.fehler || ''}</p>`;
+        olympia.gemeldet = true;
+        return;
+      } catch (_) { await new Promise(ok => setTimeout(ok, 2000 * (versuch + 1))); }
+    }
+    olympBox.innerHTML = '<span class="eyebrow">OLYMPIADE</span><strong>Keine Verbindung</strong><p>Dein Ergebnis konnte nicht gemeldet werden. Sag der Leitung Bescheid.</p>';
   }
   function step(dt) {
     if (fallbackInput) {
@@ -824,8 +1059,8 @@
     if (!throttle && !steer) { throttle = touch.throttle; steer = touch.steer; }
     if (!player.alive || autopilot) throttle = steer = 0;
     const braking = keys.has('Space') || touch.brake, repairHeld = keys.has('KeyR') || touch.repair;
-    const mobility = Systems.mobility(player.systems), profile = player.profile;
-    if (mobility === 0) velocity = 0;
+    const mobility = Systems.mobility(player.systems) * slopeFactor(tank.root.position.x, tank.root.position.z, hullYaw, velocity < -.2 || (throttle < 0 && velocity < .5) ? -1 : 1), profile = player.profile;
+    if (Systems.mobility(player.systems) === 0) velocity = 0;
     else if (braking || (repairHeld && !throttle && !steer && Systems.damaged(player.systems))) velocity *= Math.exp(-7 * dt);
     else if (throttle) {
       const target = throttle * (throttle > 0 ? profile.speed : profile.reverse) * mobility, change = profile.acceleration * mobility * dt * (velocity * target < 0 ? 1.8 : 1);
@@ -833,26 +1068,32 @@
     } else velocity *= Math.exp(-1.15 * dt);
     velocity = Math.max(-profile.reverse * mobility, Math.min(profile.speed * mobility, velocity));
     if (Math.abs(velocity) < .025) velocity = 0;
-    steerInput = steer; throttleLoad += ((throttle && Math.abs(velocity) < Math.abs(throttle) * profile.speed * mobility * .9 ? 1 : 0) - throttleLoad) * Math.min(1, dt * 4);
+    steerInput = steer; throttleInput = throttle;
     hullYaw += steer * profile.turn * mobility * dt * (velocity < -.3 ? -1 : 1) * (1 - Math.abs(velocity) / 30);
-    if (!autopilot && Systems.repair(player.systems, dt, repairHeld, !!throttle || !!steer || Math.abs(velocity) > .2, player.alive)) notify('REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
+    if (!autopilot && Systems.repair(player.systems, dt, repairHeld, !!throttle || !!steer || Math.abs(velocity) > .2, player.alive)) {
+      const underFire = targets.some(t => t.alive && t.team !== 'blue' && t.enemy === player);
+      if (underFire) stats.fieldRepairs++;
+      notify(underFire ? 'REPARATUR UNTER BESCHUSS ABGESCHLOSSEN' : 'REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
+    }
     const nx = tank.root.position.x - Math.sin(hullYaw) * velocity * dt, nz = tank.root.position.z - Math.cos(hullYaw) * velocity * dt;
     if (autopilot) velocity = 0;
     else if (!blocked(nx, nz)) { tank.root.position.x = nx; tank.root.position.z = nz; obstacleContact = false; }
     else { velocity = 0; obstacleContact = true; }
+    updateTank();
     if (!autopilot) aim(dt);
     reload = Math.max(0, reload - dt); recoil *= Math.exp(-7 * dt); updateTank();
     player.yaw = hullYaw;
     for (const wheel of tank.wheels) wheel.rotation.x += velocity * dt * 1.5;
     dustTime += dt;
-    if (dustTime > .11 && Math.abs(velocity) > 2) { dustTime = 0; temp.copy(tank.root.position); temp.y = .3; temp.x += Math.sin(hullYaw) * 2; temp.z += Math.cos(hullYaw) * 2; puff(temp, 2, 2); }
+    if (dustTime > .11 && Math.abs(velocity) > 2) { dustTime = 0; temp.copy(tank.root.position); temp.x += Math.sin(hullYaw) * 2; temp.z += Math.cos(hullYaw) * 2; temp.y = ground(temp.x, temp.z) + .3; puff(temp, 2, 2); }
     scene.updateMatrixWorld(true);
     for (let i = shells.length - 1; i >= 0; i--) {
       const shell = shells[i]; shell.life -= dt; shell.velocity.y -= 3 * dt;
       const distance = shell.velocity.length() * dt; ray.set(shell.mesh.position, direction.copy(shell.velocity).normalize()); ray.far = distance;
-      const hits = ray.intersectObjects(shotObjects(shell.owner), false);
-      if (hits.length) { impact(hits[0], shell); shell.life = 0; } else shell.mesh.position.addScaledVector(shell.velocity, dt);
-      if (shell.life <= 0 || shell.mesh.position.y < -.1) { scene.remove(shell.mesh); shells.splice(i, 1); }
+      const hits = ray.intersectObjects(shotObjects(shell.owner), false), groundDistance = groundRay(shell.mesh.position, direction, distance);
+      if (groundDistance !== null && (!hits.length || groundDistance < hits[0].distance)) { impact({ point: shell.mesh.position.clone().addScaledVector(direction, groundDistance), object: terrain.ground }, shell); shell.life = 0; }
+      else if (hits.length) { impact(hits[0], shell); shell.life = 0; } else shell.mesh.position.addScaledVector(shell.velocity, dt);
+      if (shell.life <= 0) { scene.remove(shell.mesh); shells.splice(i, 1); }
     }
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i]; p.life -= dt; p.mesh.position.addScaledVector(p.velocity, dt); p.velocity.multiplyScalar(Math.exp(-2 * dt));
@@ -869,12 +1110,14 @@
   function updateCamera(dt, immediate = false) {
     if (mode === 'menu') {
       const a = .7 + Math.sin(elapsed * .065) * .12;
-      camera.position.set(tank.root.position.x + Math.sin(a) * 17, 6.7, tank.root.position.z - Math.cos(a) * 17);
-      camera.lookAt(tank.root.position.x + 4, 1.4, tank.root.position.z + 3); camera.fov = 51; camera.updateProjectionMatrix(); return;
+      const baseY = tank.root.position.y;
+      camera.position.set(tank.root.position.x + Math.sin(a) * 17, baseY + 6.7, tank.root.position.z - Math.cos(a) * 17);
+      camera.lookAt(tank.root.position.x + 4, baseY + 1.4, tank.root.position.z + 3); camera.fov = 51; camera.updateProjectionMatrix(); return;
     }
     const back = zoom ? 6.4 : 14;
-    temp.set(tank.root.position.x + Math.sin(viewYaw) * back, zoom ? 4.1 : 6.7, tank.root.position.z + Math.cos(viewYaw) * back);
-    cameraAnchor.copy(tank.root.position); cameraAnchor.y = 2.9;
+    temp.set(tank.root.position.x + Math.sin(viewYaw) * back, tank.root.position.y + (zoom ? 4.1 : 6.7), tank.root.position.z + Math.cos(viewYaw) * back);
+    temp.y = Math.max(temp.y, ground(temp.x, temp.z) + 1.5);
+    cameraAnchor.copy(tank.root.position); cameraAnchor.y += 2.9;
     cameraDirection.copy(temp).sub(cameraAnchor);
     cameraRay.set(cameraAnchor, cameraDirection.clone().normalize()); cameraRay.far = cameraDirection.length();
     const cameraHits = cameraRay.intersectObjects(solids, false);
@@ -886,8 +1129,21 @@
     camera.fov += ((zoom ? 32 : 58) - camera.fov) * (immediate ? 1 : 1 - Math.exp(-10 * dt)); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
   }
   const map = $('minimap').getContext('2d');
+  let reliefImage = null, reliefLevel = null;
+  function reliefBackground() {
+    if (reliefLevel === level) return reliefImage;
+    reliefLevel = level; reliefImage = null;
+    if (!level.heightAt) return null;
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 180; const context = canvas.getContext('2d'), image = context.createImageData(180, 180);
+    for (let py = 0; py < 180; py++) for (let px = 0; px < 180; px++) {
+      const h = ground((px - 90) / .54, (py - 90) / .54), i = (py * 180 + px) * 4;
+      image.data[i] = 29 + h * 7 + (h < -.8 ? 22 : 0); image.data[i + 1] = 43 + h * 6 + (h < -.8 ? 14 : 0); image.data[i + 2] = 35 + h * 4; image.data[i + 3] = 255;
+    }
+    context.putImageData(image, 0, 0); reliefImage = canvas; return canvas;
+  }
   function drawMap() {
     map.fillStyle = '#1d2b23'; map.fillRect(0, 0, 180, 180);
+    const relief = reliefBackground(); if (relief) map.drawImage(relief, 0, 0);
     map.strokeStyle = '#ffffff10'; map.lineWidth = 1;
     for (let i = 0; i < 180; i += 30) { map.beginPath(); map.moveTo(i, 0); map.lineTo(i, 180); map.moveTo(0, i); map.lineTo(180, i); map.stroke(); }
     const scale = .54, center = 90;
@@ -895,7 +1151,15 @@
     for (const [x, z, w, d] of level.roads) map.fillRect(center + (x - w / 2) * scale, center + (z - d / 2) * scale, w * scale, d * scale);
     map.fillStyle = '#889078';
     for (const o of obstacles) if (o.w > 1) map.fillRect(center + (o.x - o.w) * scale, center + (o.z - o.d) * scale, o.w * scale * 2, o.d * scale * 2);
-    if (gameType === 'battle') { const cx = center + level.capture.x * scale, cz = center + level.capture.z * scale; map.strokeStyle = match.owner === 'blue' ? '#94c6db' : match.owner === 'red' ? '#f2a084' : '#dfc18c'; map.beginPath(); map.arc(cx, cz, level.capture.radius * scale, 0, Math.PI * 2); map.stroke(); map.fillStyle = '#eee4c3'; map.fillText('A', cx - 3, cz + 3); }
+    if (gameType === 'battle') {
+      const points = match.mode === 'breakthrough' ? btPoints : [level.capture], light = { blue: '#94c6db', red: '#f2a084' };
+      points.forEach((point, i) => {
+        const cx = center + point.x * scale, cz = center + point.z * scale;
+        map.strokeStyle = match.mode === 'breakthrough' ? i < match.stage ? light[match.attacker] : i === match.stage ? '#efd79a' : '#7d7a6a' : light[match.owner] || '#dfc18c';
+        map.lineWidth = match.mode === 'breakthrough' && i === match.stage ? 2 : 1;
+        map.beginPath(); map.arc(cx, cz, point.radius * scale, 0, Math.PI * 2); map.stroke(); map.fillStyle = '#eee4c3'; map.fillText('AB'[i], cx - 3, cz + 3);
+      });
+    }
     targets.forEach(target => {
       if (!target.alive || (gameType === 'battle' && target.team === 'red' && !target.visibleToPlayer)) return;
       map.strokeStyle = gameType === 'battle' ? target.team === 'blue' ? '#94c6db' : '#f2a084' : target.hits ? '#b1d29b' : '#efa665'; map.lineWidth = 1.5;
@@ -908,7 +1172,7 @@
     $('speed').textContent = Math.round(Math.abs(velocity) * 3.6); $('gear').textContent = velocity > .2 ? 'D' : velocity < -.2 ? 'R' : 'N';
     $('reloadLabel').innerHTML = reload > 0 ? `LÄDT · ${reload.toFixed(1)} S <span>↻</span>` : 'FEUERBEREIT <span>∞</span>';
     $('reloadBar').style.width = `${(1 - reload / player.profile.reload) * 100}%`;
-    for (const [id, module, label] of [['trackStatus', 'tracks', 'KETTE'], ['engineStatus', 'engine', 'MOTOR'], ['turretStatus', 'turret', 'TURM']]) {
+    for (const [id, module, label] of [['trackStatus', 'tracks', 'KETTE'], ['engineStatus', 'engine', 'MOTOR'], ['turretStatus', 'turret', player.profile.traverse ? 'RICHTUNG' : 'TURM']]) {
       const broken = player.systems[module] === 0;
       $(id).textContent = `${label} · ${broken ? 'AUSFALL' : 'OK'}`; $(id).classList.toggle('broken', broken);
       document.querySelectorAll(`[data-module="${module}"]`).forEach(part => part.classList.toggle('broken', broken));
@@ -929,68 +1193,87 @@
     $('gunMarker').hidden = temp.z > 1 || Math.abs(temp.x) > 1 || Math.abs(temp.y) > 1; drawMap();
     if (gameType === 'training') $('driveStatus').textContent = obstacleContact ? 'HINDERNIS · ZURÜCKSETZEN' : 'FAHRZEUG EINSATZBEREIT';
     if (gameType === 'battle') {
-      $('blueTickets').textContent = match.tickets.blue; $('redTickets').textContent = match.tickets.red;
+      const ticketText = value => Number.isFinite(value) ? value : '∞';
+      $('blueTickets').textContent = ticketText(match.tickets.blue); $('redTickets').textContent = ticketText(match.tickets.red);
       const seconds = Math.ceil(match.time); $('matchTime').textContent = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
-      $('score').textContent = match.contested ? 'PUNKT A · UMKÄMPFT' : match.owner === 'blue' ? 'PUNKT A · DEIN TEAM' : match.owner === 'red' ? 'PUNKT A · GEGNER' : `PUNKT A · ${Math.abs(match.progress) > .01 ? 'EROBERUNG ' + Math.round(Math.abs(match.progress) * 100) + '%' : 'NEUTRAL'}`;
-      $('captureBar').style.width = `${Math.abs(match.progress) * 100}%`; $('captureBar').style.background = match.progress >= 0 ? '#94c6db' : '#f2a084';
+      if (match.mode === 'breakthrough') {
+        const letter = 'AB'[Math.min(match.stage, 1)], percent = Math.round(match.progress * 100);
+        $('score').textContent = `PUNKT ${letter} · ${match.contested ? 'UMKÄMPFT' : percent ? `EROBERUNG ${percent}%` : match.attacker === 'blue' ? 'IN VERTEIDIGERHAND' : 'GEHALTEN'}`;
+        $('captureBar').style.width = `${match.progress * 100}%`; $('captureBar').style.background = match.attacker === 'blue' ? '#94c6db' : '#f2a084';
+      } else {
+        $('score').textContent = match.contested ? 'PUNKT A · UMKÄMPFT' : match.owner === 'blue' ? 'PUNKT A · DEIN TEAM' : match.owner === 'red' ? 'PUNKT A · GEGNER' : `PUNKT A · ${Math.abs(match.progress) > .01 ? 'EROBERUNG ' + Math.round(Math.abs(match.progress) * 100) + '%' : 'NEUTRAL'}`;
+        $('captureBar').style.width = `${Math.abs(match.progress) * 100}%`; $('captureBar').style.background = match.progress >= 0 ? '#94c6db' : '#f2a084';
+      }
       $('healthBar').style.width = `${player.hp}%`; $('healthBar').style.background = player.hp < 35 ? '#f2a084' : '#a1c390';
       $('driveStatus').textContent = !player.alive ? 'FAHRZEUG AUSGESCHALTET' : obstacleContact ? 'HINDERNIS · ZURÜCKSETZEN' : player.shield > 0 ? `STARTSCHUTZ · ${Math.ceil(player.shield)} S` : `STRUKTUR ${player.hp}% · ${stats.kills} ABSCHÜSSE`;
       $('respawn').hidden = player.alive || mode !== 'playing'; $('respawnTime').textContent = Math.max(1, Math.ceil(player.respawn));
       $('respawnCause').textContent = player.lastHit ? `Getroffen von ${player.lastHit.by.callsign} · ${player.lastHit.by.profile.name} · ${player.lastHit.where}` : '';
       $('damageFlash').hidden = damageTime <= 0;
       for (const bot of targets) {
-        temp.copy(bot.root.position); temp.y = 4.2; temp.project(camera);
+        temp.copy(bot.root.position); temp.y += 4.2; temp.project(camera);
         const visible = mode === 'playing' && bot.alive && (bot.team === 'blue' || bot.visibleToPlayer) && temp.z < 1 && Math.abs(temp.x) < 1 && Math.abs(temp.y) < 1;
         bot.label.hidden = !visible;
         if (visible) { bot.label.style.left = `${(temp.x * .5 + .5) * innerWidth}px`; bot.label.style.top = `${(-temp.y * .5 + .5) * innerHeight}px`; bot.label.innerHTML = `${bot.team === 'blue' ? '◆' : '◇'} ${bot.callsign} · ${bot.profile.name}<i style="width:${bot.hp * .55}px"></i>`; }
       }
-    }
-    if (engineGain && audio) {
-      const on = soundEnabled && mode === 'playing' && player.alive, speed = Math.abs(velocity);
-      engine.frequency.setTargetAtTime(35 + speed * 5 + throttleLoad * 14, audio.currentTime, .15);
-      engineGain.gain.setTargetAtTime(on ? .035 + speed * .002 + throttleLoad * .02 : 0, audio.currentTime, .1);
-      trackPulse.frequency.setTargetAtTime(2 + speed * 1.6, audio.currentTime, .1);
-      trackGain.gain.setTargetAtTime(on && speed > .3 ? Math.min(.05, .012 + speed * .0028) : 0, audio.currentTime, .1);
     }
   }
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   window.addEventListener('resize', resize);
   $('world').addEventListener('webglcontextlost', event => { event.preventDefault(); pause(); $('pause').hidden = true; $('menu').hidden = false; $('hud').hidden = true; fail('Die Grafikverbindung wurde unterbrochen. Bitte lade die Seite neu.'); });
   let previous = performance.now(), accumulator = 0, hudTime = 0, fpsFrames = 0, fpsTime = 0;
+  // Weak devices: when the frame rate stays below 35 while playing, the graphics step down one level
+  // (at most every 8 seconds, never back up). Automated test browsers are left alone.
+  let slowFrames = 0, slowTime = 0, lastAutoQuality = -Infinity;
+  const autoQuality = !navigator.webdriver;
+  function watchFrameRate(raw) {
+    if (mode !== 'playing' || quality === 'low' || document.hidden || raw > .5) { slowFrames = slowTime = 0; return; }
+    slowFrames++; slowTime += raw;
+    if (slowTime < 4) return;
+    const fps = slowFrames / slowTime; slowFrames = slowTime = 0;
+    if (fps >= 35 || elapsed - lastAutoQuality < 8) return;
+    lastAutoQuality = elapsed; quality = quality === 'high' ? 'medium' : 'low'; $('quality').value = quality; saveSettings(); applyQuality();
+    notify(`GRAFIK AUTOMATISCH AUF ${quality === 'medium' ? 'MITTEL' : 'NIEDRIG'} GESENKT\nDie Bildrate war zu niedrig (${Math.round(fps)} Bilder pro Sekunde).`, 4);
+  }
   function frame(now) {
     requestAnimationFrame(frame); const raw = (now - previous) / 1000, dt = Math.min(raw, .08); previous = now; elapsed += dt;
+    if (autoQuality) watchFrameRate(raw);
     if (showFps) { fpsFrames++; fpsTime += raw; if (fpsTime >= .5) { $('fps').textContent = `${Math.round(fpsFrames / fpsTime)} FPS · ${quality === 'high' ? 'HOCH' : quality === 'medium' ? 'MITTEL' : 'NIEDRIG'}`; fpsFrames = fpsTime = 0; } }
     if (mode === 'playing') { accumulator += dt; while (accumulator >= 1 / 60 && mode === 'playing') { step(1 / 60); accumulator -= 1 / 60; } updateCamera(dt); hudTime += dt; if (hudTime > .06) { updateHud(); hudTime = 0; } }
     else { accumulator = 0; if (mode === 'menu') updateCamera(dt); }
     renderer.render(scene, camera);
   }
   reset(); applyQuality(); updateCamera(1, true); updateHud();
-  start.disabled = $('trainingButton').disabled = false; start.firstChild.textContent = 'GEFECHT STARTEN ';
+  $('trainingButton').disabled = false; refreshStart();
   // Debug/test helper: advances the fixed simulation step without depending on requestAnimationFrame.
-  function sim(seconds) { for (let i = 0; i < Math.round(seconds * 60) && mode === 'playing'; i++) step(1 / 60); updateCamera(1, true); updateHud(); return window.ironHorizon.getState(); }
+  // The camera follows every step as it does at 60 fps, so aiming uses the current view.
+  function sim(seconds) { for (let i = 0; i < Math.round(seconds * 60) && mode === 'playing'; i++) { step(1 / 60); updateCamera(1 / 60); } updateCamera(1, true); updateHud(); return window.ironHorizon.getState(); }
   // Balance tournament: all six tanks are bots (the player's tank on autopilot); no rendering, no career booking.
   // vehicles = [player, blue bot 1, blue bot 2, red bot 1, red bot 2, red bot 3].
-  function balance({ vehicles = ['luchs', 'luchs', 'keiler', 'luchs', 'luchs', 'keiler'], map = 'border', level: botLevel = 'veteran', seed: runSeed = 1 } = {}) {
+  // allies/player: optional separate levels for the blue bots and the autopilot player (e.g. a beginner as 'recruit').
+  function balance({ vehicles = ['luchs', 'luchs', 'keiler', 'luchs', 'keiler', 'luchs'], map = 'border', level: botLevel = 'veteran', seed: runSeed = 1, mission: runMission = 'domination', allies = null, player: playerLevel = null } = {}) {
     if (mode !== 'menu') return null;
-    const saved = { selectedMap, selectedVehicle, difficulty, gameType };
-    seed = runSeed >>> 0 || 1; selectedMap = map; difficulty = botLevel; gameType = 'battle'; selectedVehicle = vehicles[0];
+    const saved = { selectedMap, selectedVehicle, difficulty, gameType, mission };
+    seed = runSeed >>> 0 || 1; selectedMap = map; difficulty = botLevel; gameType = 'battle'; selectedVehicle = vehicles[0]; mission = runMission;
     targets.forEach((target, i) => applyProfile(target, vehicles[i + 1]));
-    autopilot = true; reset();
+    autopilot = true; skillOverride = { blue: allies, red: null, player: playerLevel }; reset();
     Object.assign(player, freshTactics(player), { number: 3, holdIndex: 2, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1, turretYaw: 0 });
     mode = 'playing';
-    for (let i = 0; i < 421 * 60 && mode === 'playing'; i++) step(1 / 60);
-    const out = { result: match.result, tickets: { ...match.tickets }, seconds: Math.round(420 - match.time), kills: killLog.map(k => [...k]) };
-    autopilot = false; ({ selectedMap, selectedVehicle, difficulty, gameType } = saved);
+    let elapsedMatch = 0;
+    for (let i = 0; i < 1000 * 60 && mode === 'playing'; i++) { step(1 / 60); elapsedMatch += 1 / 60; }
+    const out = { result: match.result, tickets: { ...match.tickets }, seconds: Math.round(elapsedMatch), captured: match.captured ?? null, kills: killLog.map(k => [...k]) };
+    autopilot = false; skillOverride = null; ({ selectedMap, selectedVehicle, difficulty, gameType, mission } = saved);
     targets.forEach((target, i) => applyProfile(target, i === 1 || i === 3 ? 'keiler' : 'luchs'));
     mode = 'menu'; garage();
     return out;
   }
-  window.ironHorizon = Object.freeze({ sim, balance, getState: () => ({
-    mode, gameType, touchMode, quality, difficulty: matchDifficulty.id, invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
+  // Test hook: feeds synthetic frame times into the automatic graphics check.
+  function sampleFrames(fps, seconds) { for (let i = 0; i < Math.round(fps * seconds); i++) { elapsed += 1 / fps; watchFrameRate(1 / fps); } return quality; }
+  window.ironHorizon = Object.freeze({ sim, balance, sampleFrames, getState: () => ({
+    mode, gameType, touchMode, quality, difficulty: matchDifficulty.id, mission: matchMission, skills: { blue: teamSkill.blue.id, red: teamSkill.red.id }, dachsLocked: dachsLocked(), gun: (() => { const at = tank.gun.getWorldPosition(new T.Vector3()); let shown = true; for (let node = tank.gun; node; node = node.parent) shown = shown && node.visible; return { x: at.x, y: at.y, z: at.z, pitch: tank.gun.rotation.x, shown, scale: tank.gun.scale.toArray(), children: tank.gun.children.length }; })(), ground: ground(tank.root.position.x, tank.root.position.z), tilt: { pitch: tank.root.rotation.x, roll: tank.root.rotation.z }, awards: [...careerStore.state.awards], invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
     position: { x: tank.root.position.x, z: tank.root.position.z }, speed: velocity, hullYaw, turretYaw, viewYaw, reload, hitCount,
     hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length,
     career: { xp: careerStore.state.xp, matches: careerStore.state.matches, rank: Career.rank(careerStore.state.xp).current.name, paint: careerStore.state.paints[player.profile.id], warning: careerStore.warning },
-    match: { time: match.time, tickets: { ...match.tickets }, owner: match.owner, contested: match.contested, progress: match.progress, result: match.result }, stats: { ...stats },
+    match: { mode: match.mode || 'domination', stage: match.stage ?? 0, attacker: match.attacker ?? null, captured: match.captured ?? 0, time: match.time, tickets: { ...match.tickets }, owner: match.owner, contested: match.contested, progress: match.progress, result: match.result }, stats: { ...stats },
     targets: targets.map(t => ({ x: t.root.position.x, z: t.root.position.z, hits: t.hits, hp: t.hp, alive: t.alive, team: t.team, vehicle: t.profile.id, systems: { ...t.systems }, visible: t.visibleToPlayer, pathLength: t.path.length, kind: t.goalKind })), renderedFrames: renderer.info.render.frame
   }) });
   requestAnimationFrame(frame);

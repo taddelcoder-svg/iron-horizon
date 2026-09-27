@@ -29,12 +29,68 @@
       if (this.time <= 0 || this.tickets.blue <= 0 || this.tickets.red <= 0) this.result = this.tickets.blue === this.tickets.red ? 'draw' : this.tickets.blue > this.tickets.red ? 'blue' : 'red';
     }
   }
+  // Durchbruch: attackers take the points one after another; defenders win on time or when the
+  // attackers run out of tickets. Same update/lose interface as Match so the game treats both alike.
+  class Breakthrough {
+    constructor(attacker = 'blue', stages = 2) {
+      this.mode = 'breakthrough'; this.attacker = attacker; this.defender = attacker === 'blue' ? 'red' : 'blue'; this.stages = stages;
+      this.stage = 0; this.time = 300; this.tickets = { [this.attacker]: Breakthrough.TICKETS, [this.defender]: Infinity };
+      this.owner = this.defender; this.progress = 0; this.contested = false; this.result = null; this.captured = 0;
+    }
+    update(dt, blue, red) {
+      if (this.result) return;
+      this.time = Math.max(0, this.time - dt);
+      const attackers = this.attacker === 'blue' ? blue : red, defenders = this.attacker === 'blue' ? red : blue;
+      // Attackers need at least twice the defenders in the circle: 10 s alone, 30 s against a defence.
+      // A stronger defence freezes the capture; progress slowly drains when the attackers leave.
+      const pushing = attackers > 0 && attackers >= defenders * 2;
+      this.contested = attackers > 0 && defenders > 0 && !pushing;
+      if (pushing) this.progress = Math.min(1, this.progress + dt / (defenders ? 30 : 10));
+      else if (!attackers) this.progress = Math.max(0, this.progress - dt / 20);
+      if (this.progress >= 1) {
+        this.stage++; this.captured++; this.progress = 0;
+        if (this.stage >= this.stages) this.result = this.attacker; else this.time += 180;
+      }
+      this.finish();
+    }
+    // 100 tickets = 20 losses; tuned with the balance tournament so attackers win about half their matches.
+    static get TICKETS() { return 100; }
+    lose(team, amount = 5) { if (this.result || team !== this.attacker) return; this.tickets[team] = Math.max(0, this.tickets[team] - amount); this.finish(); }
+    finish() {
+      if (this.result) return;
+      if (this.time <= 0 || this.tickets[this.attacker] <= 0) this.result = this.defender;
+    }
+  }
+  // Nearest free spot on a spiral around (x, z); used to fit generated positions into any map.
+  function freeNear(x, z, blocked, step = 3, rings = 8) {
+    if (!blocked(x, z)) return [x, z];
+    for (let ring = 1; ring <= rings; ring++) for (let i = 0; i < ring * 8; i++) {
+      const angle = i / (ring * 8) * Math.PI * 2, px = x + Math.cos(angle) * ring * step, pz = z + Math.sin(angle) * ring * step;
+      if (!blocked(px, pz)) return [Math.round(px * 10) / 10, Math.round(pz * 10) / 10];
+    }
+    return [x, z];
+  }
+  // Positions around an objective. side = +1 when the team comes from +z, -1 from -z.
+  function pointLayout(point, side) {
+    const { x, z } = point;
+    return {
+      slots: [[x - 7, z + 5 * side], [x + 7, z + 5 * side], [x, z + 5 * side]],
+      holds: [[x - 22, z + 20 * side], [x + 22, z + 20 * side], [x, z + 30 * side]],
+      spawns: [[x - 12, z + 34 * side], [x + 12, z + 34 * side], [x, z + 38 * side]]
+    };
+  }
+  // Grid offset so that grid lines pass through the given point (the objective).
+  function gridShift(cell, bound, through) {
+    const shift = value => ((value + bound) % cell + cell) % cell;
+    return through ? { x: shift(through.x), z: shift(through.z) } : { x: 0, z: 0 };
+  }
   // A* over a grid of inflated static obstacles, eight directions without cutting corners.
-  // Dynamic vehicles are avoided locally by the game.
-  function findPath(start, goal, blocked, cell = 6, bound = 138) {
-    const width = Math.floor(bound * 2 / cell) + 1;
-    const grid = point => ({ x: Math.max(0, Math.min(width - 1, Math.round((point.x + bound) / cell))), z: Math.max(0, Math.min(width - 1, Math.round((point.z + bound) / cell))) });
-    const world = point => ({ x: point.x * cell - bound, z: point.z * cell - bound });
+  // Dynamic vehicles are avoided locally by the game. `through` (the objective) puts grid lines through
+  // that point, so the grid is the same for both teams on mirrored and point-symmetric maps.
+  function findPath(start, goal, blocked, cell = 6, bound = 136, through = null) {
+    const width = Math.floor(bound * 2 / cell) + 1, shift = gridShift(cell, bound, through);
+    const grid = point => ({ x: Math.max(0, Math.min(width - 1, Math.round((point.x - shift.x + bound) / cell))), z: Math.max(0, Math.min(width - 1, Math.round((point.z - shift.z + bound) / cell))) });
+    const world = point => ({ x: point.x * cell - bound + shift.x, z: point.z * cell - bound + shift.z });
     const source = grid(start), end = grid(goal), id = p => p.z * width + p.x;
     const free = new Map(), isFree = (x, z) => {
       if (x < 0 || z < 0 || x >= width || z >= width) return false;
@@ -95,11 +151,12 @@
     if (ctx.flank && toZone > ctx.capture.radius + 25) return { kind: 'flank', point: ctx.flank };
     return { kind: 'capture', point: ctx.slot };
   }
-  // Bot difficulty: reaction time range (s), extra aim error (rad) and which tactics are allowed.
+  // Bot difficulty: reaction time range (s), extra aim error (rad), extra reload time on top of the tank's
+  // own (s, plus up to 1 s at random) and which tactics are allowed. The reload is the strongest lever.
   const difficulties = Object.freeze({
-    recruit: Object.freeze({ id: 'recruit', name: 'Rekrut', reaction: [1.2, 1.8], error: .018, flank: false, smoke: false, lowAim: false, coverReload: false, xp: 1 }),
-    veteran: Object.freeze({ id: 'veteran', name: 'Veteran', reaction: [.8, 1.3], error: .011, flank: true, smoke: true, lowAim: false, coverReload: false, xp: 1 }),
-    ace: Object.freeze({ id: 'ace', name: 'Ass', reaction: [.5, .8], error: .006, flank: true, smoke: true, lowAim: true, coverReload: true, xp: 1.25 })
+    recruit: Object.freeze({ id: 'recruit', name: 'Rekrut', reaction: [1.2, 1.8], error: .022, reload: 1.4, flank: false, smoke: false, lowAim: false, xp: 1 }),
+    veteran: Object.freeze({ id: 'veteran', name: 'Veteran', reaction: [.8, 1.3], error: .011, reload: 1, flank: true, smoke: true, lowAim: false, xp: 1 }),
+    ace: Object.freeze({ id: 'ace', name: 'Ass', reaction: [.55, .85], error: .007, reload: .8, flank: true, smoke: true, lowAim: true, xp: 1.25 })
   });
   const sideText = { FRONT: 'in die Front', SEITE: 'in die Seite', HECK: 'ins Heck' };
   // Picks the one moment of the round worth retelling, plus one concrete tip.
@@ -124,7 +181,7 @@
     else if (!(stats.kills || 0) && (stats.hits || 0) >= 3) tip = 'Viele Treffer, kein Abschuss: Seite und Heck nehmen deutlich mehr Schaden als die Front.';
     return { moment, tip };
   }
-  const api = { Match, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment };
+  const api = { Match, Breakthrough, freeNear, pointLayout, gridShift, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else scope.IronBattle = api;
 })(typeof window !== 'undefined' ? window : globalThis);
