@@ -1,22 +1,26 @@
 /* Shared, deterministic match rules, navigation and bot tactics; also executable in Node for tests. */
 (function (scope) {
   'use strict';
+  // One capture point: 10 s alone to take a neutral point, 5 s to neutralise an enemy one.
+  // progress runs from -1 (red) to +1 (blue); a point with both teams inside is contested and frozen.
+  function capturePoint(point, dt, blue, red) {
+    point.contested = blue > 0 && red > 0;
+    const team = blue > 0 ? 'blue' : red > 0 ? 'red' : null;
+    if (!team || point.contested) return;
+    const sign = team === 'blue' ? 1 : -1;
+    if (point.owner && point.owner !== team) {
+      point.progress += sign * dt / 5;
+      if (point.progress * sign >= 0) { point.owner = null; point.progress = 0; }
+    } else if (!point.owner) {
+      point.progress = Math.max(-1, Math.min(1, point.progress + sign * dt / 10));
+      if (Math.abs(point.progress) >= 1) point.owner = team;
+    } else point.progress = sign;
+  }
   class Match {
     constructor() { this.time = 420; this.tickets = { blue: 100, red: 100 }; this.owner = null; this.progress = 0; this.contested = false; this.result = null; this.drain = 0; }
     update(dt, blue, red) {
       if (this.result) return;
-      this.time = Math.max(0, this.time - dt); this.contested = blue > 0 && red > 0;
-      const team = blue > 0 ? 'blue' : red > 0 ? 'red' : null;
-      if (team && !this.contested) {
-        const sign = team === 'blue' ? 1 : -1;
-        if (this.owner && this.owner !== team) {
-          this.progress += sign * dt / 5;
-          if (this.progress * sign >= 0) { this.owner = null; this.progress = 0; }
-        } else if (!this.owner) {
-          this.progress = Math.max(-1, Math.min(1, this.progress + sign * dt / 10));
-          if (Math.abs(this.progress) >= 1) this.owner = team;
-        } else this.progress = sign;
-      }
+      this.time = Math.max(0, this.time - dt); capturePoint(this, dt, blue, red);
       if (this.owner && !this.contested) {
         this.drain += dt;
         while (this.drain >= 2) { this.drain -= 2; this.lose(this.owner === 'blue' ? 'red' : 'blue', 1); }
@@ -60,6 +64,80 @@
       if (this.result) return;
       if (this.time <= 0 || this.tickets[this.attacker] <= 0) this.result = this.defender;
     }
+  }
+  // Eroberung: A in the middle, B at blue's base, C at red's base; each team starts with its home point.
+  // Every 2 s the team holding more points (uncontested) drains the other by the difference.
+  class Conquest {
+    constructor() {
+      this.mode = 'conquest'; this.time = 420; this.tickets = { blue: Conquest.TICKETS, red: Conquest.TICKETS }; this.result = null; this.drain = 0;
+      this.points = [{ owner: null, progress: 0, contested: false }, { owner: 'blue', progress: 1, contested: false }, { owner: 'red', progress: -1, contested: false }];
+    }
+    static get TICKETS() { return 100; }
+    held(team) { return this.points.filter(p => p.owner === team && !p.contested).length; }
+    // counts: [blue, red] inside A, B and C.
+    update(dt, counts) {
+      if (this.result) return;
+      this.time = Math.max(0, this.time - dt);
+      this.points.forEach((point, i) => capturePoint(point, dt, counts[i][0], counts[i][1]));
+      const lead = this.held('blue') - this.held('red');
+      if (lead) {
+        this.drain += dt;
+        while (this.drain >= 2) { this.drain -= 2; this.lose(lead > 0 ? 'red' : 'blue', Math.abs(lead)); }
+      } else this.drain = 0;
+      this.finish();
+    }
+    lose(team, amount = 5) { if (this.result) return; this.tickets[team] = Math.max(0, this.tickets[team] - amount); this.finish(); }
+    finish() { Match.prototype.finish.call(this); }
+  }
+  // Letztes Gefecht: best of three rounds, nobody respawns within a round. A round goes to the team
+  // that destroys the other or holds point A alone for 30 s in total (the other team first has to push
+  // the bar back); at the end of the time more tanks alive win it, then more remaining hit points.
+  // Two round wins decide; after three rounds the round score does. Tickets count the tanks still alive.
+  class LastStand {
+    constructor(size = 3) {
+      this.mode = 'laststand'; this.size = size; this.round = 1; this.wins = { blue: 0, red: 0 }; this.pause = 0; this.roundWinner = null; this.result = null;
+      this.startRound();
+    }
+    static get HOLD() { return 30; }
+    static get ROUND() { return 180; }
+    static get PAUSE() { return 5; }
+    startRound() {
+      this.time = LastStand.ROUND; this.tickets = { blue: this.size, red: this.size }; this.hp = { blue: 100 * this.size, red: 100 * this.size };
+      this.owner = null; this.progress = 0; this.contested = false; this.roundWinner = null;
+    }
+    update(dt, blue, red, hp) {
+      if (this.result) return;
+      // Between rounds the survivors can still drive; the next round starts from the spawns.
+      if (this.pause > 0) { this.pause -= dt; if (this.pause <= 0) { this.pause = 0; this.round++; this.startRound(); } return; }
+      this.time = Math.max(0, this.time - dt); if (hp) this.hp = { blue: hp.blue, red: hp.red };
+      this.contested = blue > 0 && red > 0;
+      if (!this.contested && (blue || red)) this.progress = Math.max(-1, Math.min(1, this.progress + (blue ? 1 : -1) * dt / LastStand.HOLD));
+      this.owner = this.progress >= 1 ? 'blue' : this.progress <= -1 ? 'red' : null;
+      this.finish();
+    }
+    // One destroyed tank; the amount of the ticket modes does not apply.
+    lose(team) { if (this.result || this.pause > 0) return; this.tickets[team] = Math.max(0, this.tickets[team] - 1); this.finish(); }
+    finish() {
+      if (this.result || this.pause > 0) return;
+      const { blue, red } = this.tickets, better = (a, b) => a === b ? null : a > b ? 'blue' : 'red';
+      let winner = null;
+      if (!blue || !red) winner = !blue && !red ? 'draw' : blue ? 'blue' : 'red';
+      else if (this.owner) winner = this.owner;
+      else if (this.time <= 0) winner = better(blue, red) || better(this.hp.blue, this.hp.red) || 'draw';
+      if (!winner) return;
+      this.roundWinner = winner; if (winner !== 'draw') this.wins[winner]++;
+      if (this.wins.blue >= 2 || this.wins.red >= 2 || this.round >= 3) this.result = better(this.wins.blue, this.wins.red) || 'draw';
+      else this.pause = LastStand.PAUSE;
+    }
+  }
+  // Eroberung: the point (0 = A, 1 = B, 2 = C) a bot works on. Roles by slot index: the centre tank
+  // prefers A, the left one its home point, the right one the enemy's base. Points the own team holds
+  // safely are skipped; when all are safe, the bot backs up A.
+  function conquestTarget(team, index, points) {
+    const home = team === 'blue' ? 1 : 2, enemy = 3 - home, sign = team === 'blue' ? 1 : -1;
+    const order = [[home, 0, enemy], [0, enemy, home], [0, home, enemy]][index] || [0, home, enemy];
+    const safe = i => points[i].owner === team && !points[i].contested && points[i].progress * sign >= .999;
+    return order.find(i => !safe(i)) ?? 0;
   }
   // Nearest free spot on a spiral around (x, z); used to fit generated positions into any map.
   function freeNear(x, z, blocked, step = 3, rings = 8) {
@@ -171,7 +249,7 @@
       if (score > bestScore) { best = event; bestScore = score; }
     }
     let moment = null;
-    if (best?.type === 'capture') moment = 'Du hast Punkt A allein erobert.';
+    if (best?.type === 'capture') moment = `Du hast Punkt ${best.point || 'A'} allein erobert.`;
     else if (best) moment = `Dein Treffer ${sideText[best.where] || ''} von ${best.victim} (${best.vehicle}) aus ${Math.round(best.distance)} m ${best.zone ? 'hat Punkt A entlastet.' : 'war dein bester Schuss.'}`.replace('  ', ' ');
     const flanked = events.filter(e => e.type === 'death' && e.where !== 'FRONT').length;
     let tip = null;
@@ -181,7 +259,7 @@
     else if (!(stats.kills || 0) && (stats.hits || 0) >= 3) tip = 'Viele Treffer, kein Abschuss: Seite und Heck nehmen deutlich mehr Schaden als die Front.';
     return { moment, tip };
   }
-  const api = { Match, Breakthrough, freeNear, pointLayout, gridShift, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment };
+  const api = { Match, Breakthrough, Conquest, LastStand, conquestTarget, capturePoint, freeNear, pointLayout, gridShift, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else scope.IronBattle = api;
 })(typeof window !== 'undefined' ? window : globalThis);

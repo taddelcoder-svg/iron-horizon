@@ -124,3 +124,4 @@
 .lobby-olymp{margin:4px 0 14px}.lobby-olymp ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0;padding:0}.lobby-olymp li{padding:6px 10px;border:1px solid #ffffff25;font-size:12px;opacity:.6}.lobby-olymp li.here{opacity:1;border-color:#a1c390}
 .vehicle-picker.five{gap:6px}.vehicle-picker.five{max-width:370px}.vehicle-picker.five button{flex:1 1 0;padding:9px 6px;min-width:0;overflow:hidden}.vehicle-picker.five b{font-size:9px;letter-spacing:.5px}.vehicle-picker.five span{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lobby-vehicles button{min-width:0;padding:9px 7px}.lobby-vehicles b{font-size:9px}.lobby-vehicles span{font-size:8px}
+.respawn.spectate{top:auto;bottom:128px;padding:12px 26px}.respawn.spectate b{font-size:16px;margin-top:8px}.touch-mode .respawn.spectate{top:auto;bottom:40%}

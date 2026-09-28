@@ -59,8 +59,14 @@
   }
   function refreshMapUi() {
     $('mapSelect').value = level.id; $('mapDescription').textContent = level.description;
-    $('missionTitle').textContent = mission === 'attack' ? `Durchbruch: ${level.name} angreifen.` : mission === 'defense' ? `Durchbruch: ${level.name} verteidigen.` : `${level.name} erobern.`; $('missionNumber').textContent = level.number;
-    $('missionText').innerHTML = mission === 'domination' ? 'Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.' : mission === 'attack' ? `Nimm erst Punkt A, dann Punkt B.<br>${IronBattle.Breakthrough.TICKETS} Tickets, jede Eroberung bringt 3 Minuten.` : 'Halte Punkt A und B, bis die Zeit abläuft<br>oder dem Angreifer die Tickets ausgehen.';
+    $('missionTitle').textContent = { attack: `Durchbruch: ${level.name} angreifen.`, defense: `Durchbruch: ${level.name} verteidigen.`, conquest: `Eroberung: ${level.name}.`, laststand: `Letztes Gefecht: ${level.name}.` }[mission] || `${level.name} erobern.`; $('missionNumber').textContent = level.number;
+    $('missionText').innerHTML = {
+      domination: 'Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.',
+      attack: `Nimm erst Punkt A, dann Punkt B.<br>${IronBattle.Breakthrough.TICKETS} Tickets, jede Eroberung bringt 3 Minuten.`,
+      defense: 'Halte Punkt A und B, bis die Zeit abläuft<br>oder dem Angreifer die Tickets ausgehen.',
+      conquest: 'Drei Punkte: A in der Mitte, dazu je ein Heimatpunkt.<br>Wer mehr Punkte hält, zieht dem Gegner Tickets ab.',
+      laststand: `Kein Wiedereinstieg: Jeder Panzer hat ein Leben.<br>Schalte alle Gegner aus oder halte Punkt A ${IronBattle.LastStand.HOLD} Sekunden.`
+    }[mission];
     $('locationName').textContent = level.name.toUpperCase();
     $('mapCaption').textContent = `${level.name.toUpperCase()} / ${level.number}`;
     $('pause').querySelector('.eyebrow').textContent = `${level.name.toUpperCase()} ${level.number}`;
@@ -194,7 +200,7 @@
     $('hudCalibre').textContent = `${p.calibre} MM · PANZERBRECHEND`;
     applyPaint(); refreshCareer(); refreshStart();
   }
-  // Objective markers: A always, B only in Durchbruch. Ring radius is scaled per point.
+  // Objective markers: A always, B in Durchbruch, B and C in Eroberung. Ring radius is scaled per point.
   function makeZone() {
     const group = new T.Group(); scene.add(group);
     const ring = new T.Mesh(new T.RingGeometry(16.7, 17, 80), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide }));
@@ -203,9 +209,10 @@
     const flag = box(3, 1.5, .06, '#b8ae83', group, 1.5, 7, 0); flag.material = flag.material.clone();
     return { group, ring, flag };
   }
-  const zones = [makeZone(), makeZone()];
+  const zones = [makeZone(), makeZone(), makeZone()];
   function placeZone(zone, point) { zone.group.position.set(point.x, ground(point.x, point.z), point.z); zone.ring.scale.setScalar(point.radius / 17); zone.group.visible = true; }
   function colorZone(zone, color) { zone.ring.material.color.set(color); zone.flag.material.color.set(color).convertSRGBToLinear(); }
+  const MISSIONS = ['domination', 'attack', 'defense', 'conquest', 'laststand'];
   let gameType = 'battle', match = new IronBattle.Match(), stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0 }, damageTime = 0, matchMission = 'domination';
   const freshStats = () => ({ hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0, bounced: 0, soloCaptures: 0, fieldRepairs: 0 });
   const combatRay = new T.Raycaster();
@@ -228,8 +235,8 @@
   const skillOf = vehicle => vehicle === player && playerSkill ? playerSkill : teamSkill[vehicle.team];
   const particleGeometry = new T.SphereGeometry(1, 5, 4);
   const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a', '#fff0b3'].map(color => new T.MeshBasicMaterial({ color }));
-  const events = [], killLog = []; let previousOwner = null, autopilot = false;
-  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; if (['domination', 'attack', 'defense'].includes(saved.mission)) mission = saved.mission; } catch (_) { /* Storage may be disabled. */ }
+  const events = [], killLog = []; let previousOwner = null, previousOwners = [], autopilot = false;
+  try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; if (MISSIONS.includes(saved.mission)) mission = saved.mission; } catch (_) { /* Storage may be disabled. */ }
   // Olympiade: Mit ?olymp=… im Link kämpft die ganze Olympia-Gruppe in einem gemeinsamen Online-Gefecht
   // (Raum je Gruppe, siehe raeume.js); jeder wählt seinen Panzer frei. Ein Versuch; die Punkte rechnet der Server.
   // Frühere Fassung: für alle dieselbe Karte, derselbe Panzer,
@@ -278,7 +285,7 @@
     selectedMap = event.target.value; saveSettings(); reset();
   };
   for (const [button, id] of pickers) $(button).onclick = () => selectVehicle(id);
-  $('missionSelect').onchange = event => { if (mode !== 'menu' || !['domination', 'attack', 'defense'].includes(event.target.value)) return; mission = event.target.value; saveSettings(); refreshMapUi(); };
+  $('missionSelect').onchange = event => { if (mode !== 'menu' || !MISSIONS.includes(event.target.value)) return; mission = event.target.value; saveSettings(); refreshMapUi(); };
   $('sensitivity').oninput = event => { sensitivity = Number(event.target.value); saveSettings(); };
   $('shake').onchange = event => { shakeEnabled = event.target.checked; saveSettings(); };
   function paintBackground(paint) { return `linear-gradient(135deg, ${paint.colors.map((color, i) => `${color} ${i * 100 / paint.colors.length}%, ${color} ${(i + 1) * 100 / paint.colors.length}%`).join(', ')})`; }
@@ -434,9 +441,12 @@
     assignSlots();
     const [startX, startZ] = gameType === 'training' ? level.trainingStart : slotSpawn(player.slot); tank.root.position.set(startX, 0, startZ); hullYaw = turretYaw = viewYaw = gameType === 'training' ? 0 : teamYaw(player.team); pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
     matchMission = gameType === 'battle' ? mission : 'domination';
-    match = matchMission === 'domination' ? new IronBattle.Match() : new IronBattle.Breakthrough(matchMission === 'attack' ? 'blue' : 'red');
+    match = matchMission === 'attack' || matchMission === 'defense' ? new IronBattle.Breakthrough(matchMission === 'attack' ? 'blue' : 'red')
+      : matchMission === 'conquest' ? new IronBattle.Conquest() : matchMission === 'laststand' ? new IronBattle.LastStand() : new IronBattle.Match();
     btPoints = match.mode === 'breakthrough' ? [level.capture, level.breakthrough[match.defender]] : [];
-    stats = freshStats(); damageTime = 0; guards.blue = guards.red = null; events.length = killLog.length = 0; previousOwner = null; previousStage = 0;
+    // Eroberung: B lies on blue's side, C on red's (the Durchbruch B points of both teams).
+    cqPoints = match.mode === 'conquest' ? [level.capture, level.breakthrough.blue, level.breakthrough.red] : [];
+    stats = freshStats(); damageTime = 0; clearGuards(); events.length = killLog.length = 0; previousOwner = null; previousStage = 0; previousRound = 1; previousPause = false; previousOwners = (match.points || []).map(point => point.owner);
     matchDifficulty = IronBattle.difficulties[difficulty];
     teamSkill = { blue: IronBattle.difficulties[skillOverride?.blue || (autopilot || net ? difficulty : 'veteran')], red: IronBattle.difficulties[skillOverride?.red || difficulty] };
     playerSkill = skillOverride?.player ? IronBattle.difficulties[skillOverride.player] : null;
@@ -458,11 +468,13 @@
       target.turretYaw = target.yaw; settle(target, target.yaw); target.turret.rotation.y = 0; target.gun.rotation.x = 0;
     }
     zones.forEach(zone => { zone.group.visible = false; });
-    if (gameType === 'battle') { placeZone(zones[0], level.capture); if (match.mode === 'breakthrough') placeZone(zones[1], btPoints[1]); }
+    if (gameType === 'battle') { placeZone(zones[0], level.capture); if (match.mode === 'breakthrough') placeZone(zones[1], btPoints[1]); cqPoints.slice(1).forEach((point, i) => placeZone(zones[i + 1], point)); }
     layouts.clear(); $('matchHud').hidden = gameType !== 'battle'; $('captureTrack').hidden = gameType !== 'battle'; $('healthTrack').hidden = gameType !== 'battle';
-    $('modeLabel').textContent = gameType === 'battle' ? `${match.mode === 'breakthrough' ? matchMission === 'attack' ? 'DURCHBRUCH · ANGRIFF' : 'DURCHBRUCH · VERTEIDIGUNG' : 'VORHERRSCHAFT'} · GEGNER: ${matchDifficulty.name.toUpperCase()}` : 'SCHIESSÜBUNG';
+    $('modeLabel').textContent = gameType === 'battle' ? `${match.mode === 'breakthrough' ? matchMission === 'attack' ? 'DURCHBRUCH · ANGRIFF' : 'DURCHBRUCH · VERTEIDIGUNG' : modeName()} · GEGNER: ${matchDifficulty.name.toUpperCase()}` : 'SCHIESSÜBUNG';
     $('objectiveTitle').textContent = gameType === 'battle' ? objectiveTitle() : 'Erfasse die Übungsziele';
-    $('matchLabel').textContent = match.mode === 'breakthrough' ? 'DURCHBRUCH' : 'VORHERRSCHAFT';
+    $('matchLabel').textContent = modeName();
+    $('respawn').classList.toggle('spectate', match.mode === 'laststand');
+    $('respawn').querySelector('b').innerHTML = match.mode === 'laststand' ? 'Kein Wiedereinstieg <i id="respawnTime"></i>' : 'Wiedereinstieg in <i id="respawnTime">6</i>';
     $('result').hidden = $('respawn').hidden = $('damageFlash').hidden = true;
     for (const shell of shells) scene.remove(shell.mesh); shells.length = 0;
     for (const particle of particles) scene.remove(particle.mesh); particles.length = 0;
@@ -470,12 +482,15 @@
     $('score').textContent = '0 / 5 ZIELE GETROFFEN';
     updateHud();
   }
+  const modeName = () => ({ breakthrough: 'DURCHBRUCH', conquest: 'EROBERUNG', laststand: 'LETZTES GEFECHT' })[match.mode] || 'VORHERRSCHAFT';
   function objectiveTitle() {
+    if (match.mode === 'conquest') return 'Halte mehr Punkte als der Gegner';
+    if (match.mode === 'laststand') return 'Schalte alle Gegner aus oder halte Punkt A';
     if (match.mode !== 'breakthrough') return 'Erobere Punkt A';
     const letter = 'AB'[Math.min(match.stage, 1)];
     return match.attacker === player.team ? `Erobere Punkt ${letter}` : `Halte Punkt ${letter}`;
   }
-  let previousStage = 0, lineup = null;
+  let previousStage = 0, previousRound = 1, previousPause = false, lineup = null;
   // A new random pairing for each battle; the garage keeps a fixed line-up.
   function rollLineup() { const pool = Systems.VEHICLES; lineup = [pool[Math.floor(random() * pool.length)], pool[Math.floor(random() * pool.length)]]; }
   function updateTank() {
@@ -625,6 +640,8 @@
     if (!force && introSeen) return;
     $('tutorialGoal').textContent = gameType !== 'battle' ? 'Triff die fünf Übungsziele. Hier schießt niemand zurück.'
       : match.mode === 'breakthrough' ? match.attacker === player.team ? 'Durchbruch: Erobere Punkt A, dann Punkt B. Ohne Verteidiger im Kreis dauert es 10 Sekunden, gegen Verteidiger 30 – dafür müsst ihr doppelt so viele sein. Jeder Punkt bringt 3 Minuten.' : `Durchbruch: Halte die Angreifer auf. Solange ihr im Kreis nicht in doppelter Unterzahl seid, stoppt ihre Eroberung. Sie haben ${IronBattle.Breakthrough.TICKETS} Tickets und nur begrenzt Zeit.`
+      : match.mode === 'conquest' ? 'Eroberung: Jedes Team startet mit seinem Heimatpunkt, A in der Mitte ist frei. Wer mehr Punkte hält, zieht dem Gegner alle 2 Sekunden die Differenz an Tickets ab.'
+      : match.mode === 'laststand' ? `Letztes Gefecht: Niemand kehrt zurück. Schalte alle Gegner aus oder halte Punkt A insgesamt ${IronBattle.LastStand.HOLD} Sekunden allein. Bist du draußen, siehst du deinem Team zu.`
       : 'Erobere Punkt A: 10 Sekunden allein im Kreis. Solange dein Team ihn hält, verliert der Gegner alle 2 Sekunden ein Ticket.';
     $('tutorialBody').querySelector('.dachs-tip')?.remove();
     if (player.profile.traverse) { const tip = document.createElement('li'); tip.className = 'dachs-tip'; tip.innerHTML = '<b>Dachs</b>: Die Kanone schwenkt nur ±12°. Im Stand dreht sich die Wanne selbst zum Ziel.'; $('tutorialBody').prepend(tip); }
@@ -837,7 +854,7 @@
         if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && skillOf(victim).smoke && random() < .5) deploySmoke(victim);
       }
       if (victim.hp === 0) {
-        victim.alive = false; victim.respawn = 6; victim.root.visible = false;
+        victim.alive = false; victim.respawn = match.mode === 'laststand' ? Infinity : 6; victim.root.visible = false;
         puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
         if (victim === player) killedMe(where);
         else { victim.label.hidden = true; victim.ring.visible = false; }
@@ -862,10 +879,10 @@
   function killedMe(where) { stats.deaths++; velocity = 0; zoom = false; events.push({ type: 'death', where }); }
   function ownKill(victim, where) {
     hitMarker('kill', 'AUSGESCHALTET');
-    const point = activePoint(), nearPoint = Math.hypot(victim.root.position.x - point.x, victim.root.position.z - point.z) < point.radius + 8;
-    const pressure = match.mode === 'breakthrough' ? match.attacker !== player.team || match.contested : match.owner === player.team || !match.owner || match.contested;
+    const point = nearestPoint(victim), nearPoint = Math.hypot(victim.root.position.x - point.x, victim.root.position.z - point.z) < point.radius + 8;
+    const pressure = match.mode === 'breakthrough' ? match.attacker !== player.team || match.contested : match.mode === 'domination' || !match.mode ? match.owner === player.team || !match.owner || match.contested : true;
     events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && pressure });
-    stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\nGegner verliert 5 Tickets.`, 3);
+    stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\n${match.mode === 'laststand' ? 'Er kehrt nicht zurück.' : 'Gegner verliert 5 Tickets.'}`, 3);
   }
   function spawnCoordinates(vehicle) {
     if (match.mode === 'breakthrough' && match.stage > 0 && vehicle.team === match.attacker) {
@@ -901,10 +918,21 @@
     const hits = combatRay.intersectObjects(shotObjects(from), false);
     return hits.length > 0 && hits[0].object.userData.vehicle === to;
   }
-  const guards = { blue: null, red: null };
-  let btPoints = [];
+  // Guards per team (per team and point in Eroberung).
+  const guards = {};
+  function clearGuards() { for (const key of Object.keys(guards)) delete guards[key]; }
+  let btPoints = [], cqPoints = [];
+  const conquest = () => match.mode === 'conquest';
+  const modePoints = () => conquest() ? cqPoints : btPoints;
+  // The point a vehicle works on: the current stage in Durchbruch, its own choice in Eroberung, else A.
+  const pointIndex = vehicle => match.mode === 'breakthrough' ? Math.min(match.stage, btPoints.length - 1) : conquest() ? vehicle?.cqTarget ?? 0 : 0;
+  const within = (vehicle, point) => vehicle.alive && Math.hypot(vehicle.root.position.x - point.x, vehicle.root.position.z - point.z) < point.radius;
+  const zonePoints = () => conquest() ? cqPoints : [activePoint()];
+  // Index of the point where the player stands alone (-1: none); decides solo captures.
+  function soloPoint() { const all = [player, ...targets]; return zonePoints().findIndex(point => within(player, point) && all.filter(v => within(v, point)).length === 1); }
+  function nearestPoint(vehicle) { const { x, z } = vehicle.root.position; return zonePoints().reduce((best, point) => Math.hypot(x - point.x, z - point.z) < Math.hypot(x - best.x, z - best.z) ? point : best); }
   const layouts = new Map();
-  function activePoint() { return match.mode === 'breakthrough' ? btPoints[Math.min(match.stage, btPoints.length - 1)] : level.capture; }
+  function activePoint(vehicle) { return match.mode === 'breakthrough' ? btPoints[pointIndex()] : conquest() ? cqPoints[pointIndex(vehicle)] : level.capture; }
   // Six fixed slots: blue 0 (centre), 1, 2 · red 3, 4, 5 (centre); mirror pairs 0↔5, 1↔3, 2↔4.
   // Offline the player is slot 0 and targets[i] slot i + 1; online every human gets a slot from the room.
   const slotTeam = slot => slot < 3 ? 'blue' : 'red';
@@ -919,27 +947,27 @@
   // Durchbruch positions are generated around each point and nudged out of obstacles (also on the nav grid).
   // Red gets the exact mirror image of blue's positions, so both sides fight on the same ground.
   function layoutFor(index, team) {
-    const key = `${level.id}-${index}-${team}-${match.attacker}`;
+    const key = `${level.id}-${match.mode}-${index}-${team}-${match.attacker}`;
     if (!layouts.has(key)) {
       const shift = IronBattle.gridShift(6, 136, level.capture), snap = (value, offset) => Math.round((value - offset + 136) / 6) * 6 - 136 + offset;
       const bad = (x, z) => staticBlocked(x, z, 3.4) || staticBlocked(snap(x, shift.x), snap(z, shift.z), 2.8);
-      const point = btPoints[index], mirrored = team === 'red', [px, pz] = mirrored ? IronMaps.mirror(level, point.x, point.z) : [point.x, point.z];
+      const point = modePoints()[index], mirrored = team === 'red', [px, pz] = mirrored ? IronMaps.mirror(level, point.x, point.z) : [point.x, point.z];
       const raw = IronBattle.pointLayout({ x: px, z: pz }, 1);
       layouts.set(key, Object.fromEntries(Object.entries(raw).map(([name, list]) => [name, list.map(([x, z]) => { const free = IronBattle.freeNear(x, z, bad); return mirrored ? IronMaps.mirror(level, ...free) : free; })])));
     }
     return layouts.get(key);
   }
-  const inZone = vehicle => { const point = activePoint(); return vehicle.alive && Math.hypot(vehicle.root.position.x - point.x, vehicle.root.position.z - point.z) < point.radius; };
+  const inZone = vehicle => zonePoints().some(point => within(vehicle, point));
   // One bot per team stays on a secured point; the others take overwatch positions.
   function isGuard(bot) {
     // A human player is never assigned a role; on autopilot the player's tank is a bot like any other.
     if (bot === player && !autopilot) return false;
-    if (bot.team === player.team && inZone(player) && !autopilot) return false;
-    let guard = guards[bot.team];
-    if (!guard?.alive) {
-      const point = activePoint();
-      guard = [...(autopilot ? [player] : []), ...targets].filter(t => t.team === bot.team && t.alive && !t.remote).sort((a, b) => Math.hypot(a.root.position.x - point.x, a.root.position.z - point.z) - Math.hypot(b.root.position.x - point.x, b.root.position.z - point.z))[0] || null;
-      guards[bot.team] = guard;
+    const index = pointIndex(bot), point = activePoint(bot), key = conquest() ? bot.team + index : bot.team;
+    if (bot.team === player.team && within(player, point) && !autopilot) return false;
+    let guard = guards[key];
+    if (!guard?.alive || pointIndex(guard) !== index) {
+      guard = [...(autopilot ? [player] : []), ...targets].filter(t => t.team === bot.team && t.alive && !t.remote && pointIndex(t) === index).sort((a, b) => Math.hypot(a.root.position.x - point.x, a.root.position.z - point.z) - Math.hypot(b.root.position.x - point.x, b.root.position.z - point.z))[0] || null;
+      guards[key] = guard;
     }
     return guard === bot;
   }
@@ -950,19 +978,23 @@
     const repairing = Systems.damaged(bot.systems) && (Systems.mobility(bot.systems) < 1 || !bot.enemy?.alive);
     Systems.repair(bot.systems, dt, repairing, false);
     if (bot.flank && Math.hypot(bot.root.position.x - bot.flank[0], bot.root.position.z - bot.flank[1]) < 10) bot.flank = null;
-    const skill = skillOf(bot), point = activePoint(), threatened = bot.threat > 0;
-    let slot, hold, owner = match.owner, progress = match.progress;
+    if (conquest()) bot.cqTarget = IronBattle.conquestTarget(bot.team, slotIndex(bot), match.points);
+    const skill = skillOf(bot), point = activePoint(bot), threatened = bot.threat > 0;
+    let slot, hold, owner = match.owner, progress = match.progress, contested = match.contested;
     if (match.mode === 'breakthrough') {
       const layout = layoutFor(Math.min(match.stage, btPoints.length - 1), bot.team); slot = layout.slots[slotIndex(bot)]; hold = layout.holds[slotIndex(bot)];
       // Defenders treat an untouched point as "secured"; attackers never do.
       progress = (bot.team === 'blue' ? 1 : -1) * (1 - match.progress);
+    } else if (conquest()) {
+      const index = pointIndex(bot), layout = layoutFor(index, bot.team); slot = layout.slots[slotIndex(bot)]; hold = layout.holds[slotIndex(bot)];
+      ({ owner, progress, contested } = match.points[index]);
     } else {
       const holds = level.holds[bot.team];
       slot = slotGoal(bot.slot); hold = holds[slotIndex(bot)];
     }
     // Flanks only pay off against a held point; in the race for a free point the direct way wins.
     const flank = owner && owner !== bot.team ? bot.flank : null;
-    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened, guard: isGuard(bot), owner, contested: match.contested, progress, capture: point, slot, hold, flank });
+    const objective = IronBattle.botObjective({ team: bot.team, position: bot.root.position, hp: bot.hp, threatened, guard: isGuard(bot), owner, contested, progress, capture: point, slot, hold, flank });
     const goal = { x: objective.point[0], z: objective.point[1] };
     if (bot.goalPoint !== objective.point) { bot.goalPoint = objective.point; bot.goalKind = objective.kind; bot.navigationTimer = 0; }
     if (bot.navigationTimer <= 0) {
@@ -1058,30 +1090,55 @@
       else if (vehicle !== player) updateBot(vehicle, dt);
       else if (autopilot) { updateBot(player, dt); hullYaw = player.yaw; turretYaw = player.turretYaw; }
     }
-    const inside = [player, ...targets].filter(inZone), alone = inside.length === 1 && inside[0] === player;
-    if (inside.includes(player)) stats.captureSeconds += dt;
-    match.update(dt, inside.filter(v => v.team === 'blue').length, inside.filter(v => v.team === 'red').length);
-    pointEvents(alone);
+    const all = [player, ...targets], count = (team, point) => all.filter(v => v.team === team && within(v, point)).length;
+    if (inZone(player)) stats.captureSeconds += dt;
+    if (conquest()) match.update(dt, cqPoints.map(point => [count('blue', point), count('red', point)]));
+    else {
+      // Letztes Gefecht decides a timeout by the remaining hit points; the other modes ignore them.
+      const point = activePoint(), hp = team => all.filter(v => v.team === team && v.alive).reduce((sum, v) => sum + v.hp, 0);
+      match.update(dt, count('blue', point), count('red', point), { blue: hp('blue'), red: hp('red') });
+    }
+    // Letztes Gefecht: a new round puts every tank back on its spawn (pointEvents then notes the round).
+    if (match.mode === 'laststand' && match.round !== previousRound) [player, ...targets].forEach(respawnVehicle);
+    pointEvents(soloPoint());
     if (net?.host) { net.snapTime -= dt; if (net.snapTime <= 0 || match.result) { net.snapTime = 1 / 15; sendSnapshot(); } }
     if (match.result) finishMatch();
   }
   // Stage changes, solo captures and zone colours; the host derives them from its rules, guests from snapshots.
-  function pointEvents(alone) {
+  function pointEvents(solo) {
     const teamColor = { blue: '#79b9d7', red: '#da8365' };
     if (match.mode === 'breakthrough') {
       if (match.stage !== previousStage) {
         const letter = 'AB'[previousStage];
-        if (match.attacker === player.team && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+        if (match.attacker === player.team && solo >= 0) { events.push({ type: 'capture', point: letter }); stats.soloCaptures++; }
         if (!match.result) {
           notify(match.attacker === player.team ? `PUNKT ${letter} EROBERT · +3:00\nWeiter zu Punkt B.` : `PUNKT ${letter} VERLOREN · +3:00 FÜR DEN GEGNER\nZurück zu Punkt B.`, 4);
-          guards.blue = guards.red = null; [player, ...targets].forEach(vehicle => { vehicle.navigationTimer = 0; });
+          clearGuards(); [player, ...targets].forEach(vehicle => { vehicle.navigationTimer = 0; });
           $('objectiveTitle').textContent = objectiveTitle();
         }
         previousStage = match.stage;
       }
       zones.forEach((zone, i) => colorZone(zone, i < match.stage ? teamColor[match.attacker] : i === match.stage ? match.contested ? '#efb36c' : match.progress > .01 ? '#e9d08a' : teamColor[match.defender] : '#8d8a78'));
+    } else if (conquest()) {
+      match.points.forEach((point, i) => {
+        const before = previousOwners[i], letter = 'ABC'[i];
+        if (point.owner !== before) {
+          if (point.owner === player.team) {
+            notify(`PUNKT ${letter} EROBERT`, 3);
+            if (solo === i) { events.push({ type: 'capture', point: letter }); stats.soloCaptures++; }
+          } else if (before === player.team) notify(`PUNKT ${letter} ${point.owner ? 'VERLOREN' : 'NEUTRALISIERT'}\nHol ihn zurück.`, 3);
+          previousOwners[i] = point.owner;
+        }
+        colorZone(zones[i], point.contested ? '#efb36c' : teamColor[point.owner] || '#dfc18c');
+      });
+    } else if (match.mode === 'laststand') {
+      const foe = player.team === 'blue' ? 'red' : 'blue', score = `${match.wins[player.team]} : ${match.wins[foe]}`;
+      if (match.pause > 0 && !previousPause && !match.result) notify(`RUNDE ${match.round} ${match.roundWinner === player.team ? 'GEWONNEN' : match.roundWinner === 'draw' ? 'UNENTSCHIEDEN' : 'VERLOREN'} · ${score}\nNächste Runde in ${IronBattle.LastStand.PAUSE} Sekunden.`, IronBattle.LastStand.PAUSE);
+      if (match.round !== previousRound) { clearSmoke(); notify(`RUNDE ${match.round} · ${score}\nAlle zurück auf Anfang.`, 3); }
+      previousPause = match.pause > 0; previousRound = match.round;
+      colorZone(zones[0], match.contested ? '#efb36c' : Math.abs(match.progress) > .01 ? teamColor[match.progress > 0 ? 'blue' : 'red'] : '#dfc18c');
     } else {
-      if (match.owner === player.team && previousOwner !== player.team && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+      if (match.owner === player.team && previousOwner !== player.team && solo >= 0) { events.push({ type: 'capture' }); stats.soloCaptures++; }
       colorZone(zones[0], match.contested ? '#efb36c' : teamColor[match.owner] || '#dfc18c');
     }
     previousOwner = match.owner;
@@ -1095,6 +1152,10 @@
       const attacking = match.attacker === player.team, won = match.result === player.team;
       $('resultTitle').textContent = attacking ? won ? 'Durchbruch geschafft.' : 'Angriff gescheitert.' : won ? 'Stellung gehalten.' : 'Stellung verloren.';
       $('resultReason').textContent = `${match.captured >= match.stages ? 'Punkt B ist gefallen.' : match.tickets[match.attacker] <= 0 ? 'Die Angreifer haben keine Tickets mehr.' : 'Zeit abgelaufen.'} ${match.captured} von ${match.stages} Punkten erobert, ${match.tickets[match.attacker]} Angriffstickets übrig.`;
+    } else if (match.mode === 'laststand') {
+      const { blue, red } = match.tickets;
+      $('resultTitle').textContent = match.result === player.team ? 'Letztes Gefecht gewonnen.' : match.result === 'draw' ? 'Unentschieden.' : 'Letztes Gefecht verloren.';
+      $('resultReason').textContent = `Runden Blau ${match.wins.blue} : ${match.wins.red} Rot. Letzte Runde: ${!blue || !red ? 'Ein Team wurde ausgeschaltet.' : match.owner ? `Punkt A wurde ${IronBattle.LastStand.HOLD} Sekunden gehalten.` : blue !== red ? 'Zeit abgelaufen, mehr Panzer übrig.' : 'Zeit abgelaufen, mehr Struktur übrig.'}`;
     } else {
       $('resultTitle').textContent = match.result === player.team ? `${level.name} gesichert.` : match.result === 'draw' ? 'Unentschieden.' : 'Gefecht verloren.';
       $('resultReason').textContent = `${match.time <= 0 ? 'Zeit abgelaufen.' : 'Ein Team hat keine Tickets mehr.'} Blau ${match.tickets.blue} : ${match.tickets.red} Rot.`;
@@ -1191,6 +1252,8 @@
     if (net && !net.host) updateGuest(dt);
     else if (gameType === 'battle') updateBattle(dt);
   }
+  // Letztes Gefecht: once the own tank is out, the camera follows a teammate who is still fighting.
+  function spectated() { return gameType === 'battle' && match.mode === 'laststand' && !player.alive ? targets.find(t => t.alive && t.team === player.team) || null : null; }
   function updateCamera(dt, immediate = false) {
     if (mode === 'menu') {
       const a = .7 + Math.sin(elapsed * .065) * .12;
@@ -1198,10 +1261,10 @@
       camera.position.set(tank.root.position.x + Math.sin(a) * 17, baseY + 6.7, tank.root.position.z - Math.cos(a) * 17);
       camera.lookAt(tank.root.position.x + 4, baseY + 1.4, tank.root.position.z + 3); camera.fov = 51; camera.updateProjectionMatrix(); return;
     }
-    const back = zoom ? 6.4 : 14;
-    temp.set(tank.root.position.x + Math.sin(viewYaw) * back, tank.root.position.y + (zoom ? 4.1 : 6.7), tank.root.position.z + Math.cos(viewYaw) * back);
+    const back = zoom ? 6.4 : 14, followed = spectated(), at = (followed || player).root.position;
+    temp.set(at.x + Math.sin(viewYaw) * back, at.y + (zoom ? 4.1 : 6.7), at.z + Math.cos(viewYaw) * back);
     temp.y = Math.max(temp.y, ground(temp.x, temp.z) + 1.5);
-    cameraAnchor.copy(tank.root.position); cameraAnchor.y += 2.9;
+    cameraAnchor.copy(at); cameraAnchor.y += 2.9;
     cameraDirection.copy(temp).sub(cameraAnchor);
     cameraRay.set(cameraAnchor, cameraDirection.clone().normalize()); cameraRay.far = cameraDirection.length();
     const cameraHits = cameraRay.intersectObjects(solids, false);
@@ -1236,12 +1299,12 @@
     map.fillStyle = '#889078';
     for (const o of obstacles) if (o.w > 1) map.fillRect(center + (o.x - o.w) * scale, center + (o.z - o.d) * scale, o.w * scale * 2, o.d * scale * 2);
     if (gameType === 'battle') {
-      const points = match.mode === 'breakthrough' ? btPoints : [level.capture], light = { blue: '#94c6db', red: '#f2a084' };
+      const points = match.mode === 'breakthrough' ? btPoints : conquest() ? cqPoints : [level.capture], light = { blue: '#94c6db', red: '#f2a084' };
       points.forEach((point, i) => {
         const cx = center + point.x * scale, cz = center + point.z * scale;
-        map.strokeStyle = match.mode === 'breakthrough' ? i < match.stage ? light[match.attacker] : i === match.stage ? '#efd79a' : '#7d7a6a' : light[match.owner] || '#dfc18c';
+        map.strokeStyle = match.mode === 'breakthrough' ? i < match.stage ? light[match.attacker] : i === match.stage ? '#efd79a' : '#7d7a6a' : light[conquest() ? match.points[i].owner : match.owner] || '#dfc18c';
         map.lineWidth = match.mode === 'breakthrough' && i === match.stage ? 2 : 1;
-        map.beginPath(); map.arc(cx, cz, point.radius * scale, 0, Math.PI * 2); map.stroke(); map.fillStyle = '#eee4c3'; map.fillText('AB'[i], cx - 3, cz + 3);
+        map.beginPath(); map.arc(cx, cz, point.radius * scale, 0, Math.PI * 2); map.stroke(); map.fillStyle = '#eee4c3'; map.fillText('ABC'[i], cx - 3, cz + 3);
       });
     }
     targets.forEach(target => {
@@ -1284,13 +1347,24 @@
         const letter = 'AB'[Math.min(match.stage, 1)], percent = Math.round(match.progress * 100);
         $('score').textContent = `PUNKT ${letter} · ${match.contested ? 'UMKÄMPFT' : percent ? `EROBERUNG ${percent}%` : match.attacker === player.team ? 'IN VERTEIDIGERHAND' : 'GEHALTEN'}`;
         $('captureBar').style.width = `${match.progress * 100}%`; $('captureBar').style.background = match.attacker === 'blue' ? '#94c6db' : '#f2a084';
+      } else if (conquest()) {
+        const index = Math.max(0, cqPoints.findIndex(point => within(player, point))), point = match.points[index], foe = player.team === 'blue' ? 'red' : 'blue';
+        const state = point.contested ? 'UMKÄMPFT' : point.owner === player.team ? 'DEIN TEAM' : point.owner ? 'GEGNER' : Math.abs(point.progress) > .01 ? `EROBERUNG ${Math.round(Math.abs(point.progress) * 100)}%` : 'NEUTRAL';
+        $('score').textContent = `PUNKTE ${match.held(player.team)} : ${match.held(foe)} · ${'ABC'[index]} ${state}`;
+        $('captureBar').style.width = `${Math.abs(point.progress) * 100}%`; $('captureBar').style.background = point.progress >= 0 ? '#94c6db' : '#f2a084';
+      } else if (match.mode === 'laststand') {
+        const held = Math.round(Math.abs(match.progress) * IronBattle.LastStand.HOLD), mine = match.progress * (player.team === 'blue' ? 1 : -1) > 0;
+        $('score').textContent = `RUNDE ${match.round} · ${match.wins[player.team]} : ${match.wins[player.team === 'blue' ? 'red' : 'blue']} · A ${match.contested ? 'UMKÄMPFT' : held ? `${mine ? 'DEIN TEAM' : 'GEGNER'} ${held} / ${IronBattle.LastStand.HOLD} S` : 'FREI'}`;
+        $('captureBar').style.width = `${Math.abs(match.progress) * 100}%`; $('captureBar').style.background = match.progress >= 0 ? '#94c6db' : '#f2a084';
       } else {
         $('score').textContent = match.contested ? 'PUNKT A · UMKÄMPFT' : match.owner === player.team ? 'PUNKT A · DEIN TEAM' : match.owner ? 'PUNKT A · GEGNER' : `PUNKT A · ${Math.abs(match.progress) > .01 ? 'EROBERUNG ' + Math.round(Math.abs(match.progress) * 100) + '%' : 'NEUTRAL'}`;
         $('captureBar').style.width = `${Math.abs(match.progress) * 100}%`; $('captureBar').style.background = match.progress >= 0 ? '#94c6db' : '#f2a084';
       }
       $('healthBar').style.width = `${player.hp}%`; $('healthBar').style.background = player.hp < 35 ? '#f2a084' : '#a1c390';
       $('driveStatus').textContent = !player.alive ? 'FAHRZEUG AUSGESCHALTET' : obstacleContact ? 'HINDERNIS · ZURÜCKSETZEN' : player.shield > 0 ? `STARTSCHUTZ · ${Math.ceil(player.shield)} S` : `STRUKTUR ${player.hp}% · ${stats.kills} ABSCHÜSSE`;
-      $('respawn').hidden = player.alive || mode !== 'playing'; $('respawnTime').textContent = Math.max(1, Math.ceil(player.respawn));
+      $('respawn').hidden = player.alive || mode !== 'playing';
+      if (match.mode === 'laststand') { const buddy = spectated(); $('respawnTime').textContent = buddy ? `· du siehst ${buddy.callsign} zu` : ''; }
+      else $('respawnTime').textContent = Math.max(1, Math.ceil(player.respawn));
       $('respawnCause').textContent = player.lastHit ? `Getroffen von ${player.lastHit.by.callsign} · ${player.lastHit.by.profile.name} · ${player.lastHit.where}` : '';
       $('damageFlash').hidden = damageTime <= 0;
       for (const bot of targets) {
@@ -1309,7 +1383,7 @@
   const round2 = value => Math.round(value * 100) / 100;
   function sendSnapshot() {
     const vehicles = [player, ...targets].sort((a, b) => a.slot - b.slot);
-    IronOnline.send({ t: 'snap', m: [round2(match.time), ticketOut(match.tickets.blue), ticketOut(match.tickets.red), match.owner || '', round2(match.progress), match.contested ? 1 : 0, match.stage ?? 0, match.captured ?? 0],
+    IronOnline.send({ t: 'snap', m: [round2(match.time), ticketOut(match.tickets.blue), ticketOut(match.tickets.red), match.owner || '', round2(match.progress), match.contested ? 1 : 0, match.stage ?? 0, match.captured ?? 0, match.points ? match.points.map(p => [p.owner || '', round2(p.progress), p.contested ? 1 : 0]) : match.wins ? [match.round, match.wins.blue, match.wins.red, round2(match.pause), match.roundWinner || ''] : 0],
       v: vehicles.map(v => [round2(v.root.position.x), round2(v.root.position.z), round2(v === player ? hullYaw : v.yaw), round2(v === player ? turretYaw : v.turretYaw), round2(v.gun.rotation.x), v.hp, v.alive ? 1 : 0, round2(v.respawn), v.shield > 0 ? 1 : 0,
         (v.systems.tracks ? 0 : 1) | (v.systems.engine ? 0 : 2) | (v.systems.turret ? 0 : 4), v.life || 0, v.systems.smokeCharges, round2(v.systems.repair), round2(v.systems.smokeCooldown)]) });
   }
@@ -1355,16 +1429,18 @@
     if (inZone(player)) stats.captureSeconds += dt;
     net.seeTime -= dt;
     if (net.seeTime <= 0) { net.seeTime = .3; for (const target of targets) target.visibleToPlayer = target.team !== player.team && canSee(player, target); }
-    pointEvents(inZone(player) && [player, ...targets].filter(inZone).length === 1);
+    pointEvents(soloPoint());
   }
   function applySnapshot(d) {
     if (!net || net.host || mode === 'menu' || mode === 'result' || !Array.isArray(d.v)) return;
-    const [time, blue, red, owner, progress, contested, stage, captured] = d.m;
+    const [time, blue, red, owner, progress, contested, stage, captured, points] = d.m;
     Object.assign(match, { time, owner: owner || null, progress, contested: !!contested }); match.tickets.blue = ticketIn(blue); match.tickets.red = ticketIn(red);
     if (match.mode === 'breakthrough') { match.stage = stage; match.captured = captured; }
+    if (match.wins && Array.isArray(points)) { const [round, winsBlue, winsRed, pause, roundWinner] = points; Object.assign(match, { round, pause, roundWinner: roundWinner || null }); match.wins = { blue: winsBlue, red: winsRed }; }
+    if (match.points && Array.isArray(points)) points.forEach(([pointOwner, pointProgress, pointContested], i) => { if (match.points[i]) Object.assign(match.points[i], { owner: pointOwner || null, progress: pointProgress, contested: !!pointContested }); });
     d.v.forEach((row, slot) => {
       const v = bySlot(slot); if (!v) return;
-      const [x, z, yaw, turret, pitch, hp, alive, respawn, shield, broken, life, smoke, repair, smokeCooldown] = row;
+      const [x, z, yaw, turret, gunPitch, hp, alive, respawn, shield, broken, life, smoke, repair, smokeCooldown] = row;
       const wasDamaged = Systems.damaged(v.systems), wasAlive = v.alive;
       Object.assign(v, { hp, alive: !!alive, respawn, shield: shield ? 1 : 0 });
       Object.assign(v.systems, { tracks: broken & 1 ? 0 : 100, engine: broken & 2 ? 0 : 100, turret: broken & 4 ? 0 : 100, smokeCharges: smoke, repair, smokeCooldown });
@@ -1376,7 +1452,7 @@
         }
         if (wasDamaged && !Systems.damaged(v.systems) && v.alive) notify('REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
       } else {
-        v.netState = { x, z, yaw, turret, pitch };
+        v.netState = { x, z, yaw, turret, pitch: gunPitch };
         if (life !== v.life) { v.life = life; v.root.position.set(x, 0, z); v.yaw = v.turretYaw = yaw; settle(v, yaw); }
         v.root.visible = v.alive; if (!v.alive) v.label.hidden = true;
       }
@@ -1498,7 +1574,7 @@
     position: { x: tank.root.position.x, z: tank.root.position.z }, speed: velocity, hullYaw, turretYaw, viewYaw, reload, hitCount,
     hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length, shellOwners: shells.map(shell => shell.owner.slot),
     career: { xp: careerStore.state.xp, matches: careerStore.state.matches, rank: Career.rank(careerStore.state.xp).current.name, paint: careerStore.state.paints[player.profile.id], warning: careerStore.warning },
-    match: { mode: match.mode || 'domination', stage: match.stage ?? 0, attacker: match.attacker ?? null, captured: match.captured ?? 0, time: match.time, tickets: { ...match.tickets }, owner: match.owner, contested: match.contested, progress: match.progress, result: match.result }, stats: { ...stats },
+    match: { mode: match.mode || 'domination', stage: match.stage ?? 0, attacker: match.attacker ?? null, captured: match.captured ?? 0, time: match.time, tickets: { ...match.tickets }, owner: match.owner, contested: match.contested, progress: match.progress, result: match.result, points: match.points ? match.points.map(point => ({ ...point })) : null, hp: match.hp ? { ...match.hp } : null, round: match.round ?? null, wins: match.wins ? { ...match.wins } : null }, stats: { ...stats },
     targets: targets.map(t => ({ slot: t.slot, remote: t.remote, callsign: t.callsign, x: t.root.position.x, z: t.root.position.z, hits: t.hits, hp: t.hp, alive: t.alive, team: t.team, vehicle: t.profile.id, systems: { ...t.systems }, visible: t.visibleToPlayer, pathLength: t.path.length, kind: t.goalKind })), renderedFrames: renderer.info.render.frame
   }) });
   requestAnimationFrame(frame);

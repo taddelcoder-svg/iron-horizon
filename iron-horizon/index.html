@@ -19,7 +19,7 @@
   <script defer src="maps.js"></script>
   <script defer src="terrain.js"></script>
   <script defer src="online.js"></script>
-  <script defer src="game.js?v=1.2"></script>
+  <script defer src="game.js?v=1.3"></script>
 </head>
 <body>
   <canvas id="world" aria-label="Iron Horizon 3D-Panzergefecht"></canvas>
@@ -32,12 +32,12 @@
   </header>
   <main id="menu" class="menu">
     <section class="intro">
-      <div class="eyebrow"><span></span> IRON HORIZON / 1.2</div>
+      <div class="eyebrow"><span></span> IRON HORIZON / 1.3</div>
       <h1>STAHL.<br>STAUB.<br><em>DEIN REVIER.</em></h1>
       <p>Spür das Gewicht. Dreh den Turm.<br>Setz den ersten Treffer.</p>
       <div class="mission"><span id="missionNumber" class="number">01</span><div><b id="missionTitle">Grenzposten erobern.</b><p id="missionText">Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.</p></div></div>
       <div class="map-picker"><label for="mapSelect">EINSATZGEBIET <span>3 KARTEN</span></label><select id="mapSelect" aria-describedby="mapDescription"><option value="border">01 · Grenzposten</option><option value="quarry">02 · Steinbruch</option><option value="valley">03 · Flusstal</option></select><p id="mapDescription">Dorfstraßen, Häuserdeckung und offene Flanken.</p></div>
-      <div class="picker-row"><div class="map-picker difficulty-picker"><label for="missionSelect">SPIELMODUS</label><select id="missionSelect"><option value="domination">Vorherrschaft</option><option value="attack">Durchbruch · Angriff</option><option value="defense">Durchbruch · Verteidigung</option></select></div>
+      <div class="picker-row"><div class="map-picker difficulty-picker"><label for="missionSelect">SPIELMODUS</label><select id="missionSelect"><option value="domination">Vorherrschaft</option><option value="attack">Durchbruch · Angriff</option><option value="defense">Durchbruch · Verteidigung</option><option value="conquest">Eroberung · drei Punkte</option><option value="laststand">Letztes Gefecht · ein Leben</option></select></div>
       <div class="map-picker difficulty-picker"><label for="difficultySelect">GEGNER</label><select id="difficultySelect" aria-describedby="difficultyNote"><option value="recruit">Rekrut · Einstieg</option><option value="veteran">Veteran · Standard</option><option value="ace">Ass · +25 % EP</option></select></div></div>
       <p id="difficultyNote" class="picker-note">Ausgewogene Gegner mit Flanken und Rauch.</p>
       <div class="vehicle-picker five" aria-label="Fahrzeug wählen"><button id="selectLuchs" aria-pressed="true"><b>LUCHS</b><span>Schnell</span></button><button id="selectKeiler" aria-pressed="false"><b>KEILER</b><span>Starke Front</span></button><button id="selectWiesel" aria-pressed="false"><b>WIESEL</b><span>Späher</span></button><button id="selectDachs" aria-pressed="false"><b>DACHS</b><span id="dachsHint">Jagdpanzer</span></button><button id="selectBaer" aria-pressed="false"><b>BÄR</b><span>Schwer</span></button></div>
@@ -97,7 +97,7 @@
       <div id="lobbyVehicles" class="vehicle-picker lobby-vehicles" aria-label="Dein Panzer"><button data-vehicle="luchs"><b>LUCHS</b><span>Schnell</span></button><button data-vehicle="keiler"><b>KEILER</b><span>Starke Front</span></button><button data-vehicle="wiesel"><b>WIESEL</b><span>Späher</span></button><button data-vehicle="dachs"><b>DACHS</b><span>Jagdpanzer</span></button><button data-vehicle="baer"><b>BÄR</b><span>Schwer</span></button></div>
       <div class="picker-row lobby-settings">
         <div class="map-picker"><label for="roomMap">KARTE</label><select id="roomMap"><option value="border">Grenzposten</option><option value="quarry">Steinbruch</option><option value="valley">Flusstal</option></select></div>
-        <div class="map-picker"><label for="roomMission">MODUS</label><select id="roomMission"><option value="domination">Vorherrschaft</option><option value="attack">Durchbruch · Blau greift an</option><option value="defense">Durchbruch · Rot greift an</option></select></div>
+        <div class="map-picker"><label for="roomMission">MODUS</label><select id="roomMission"><option value="domination">Vorherrschaft</option><option value="attack">Durchbruch · Blau greift an</option><option value="defense">Durchbruch · Rot greift an</option><option value="conquest">Eroberung · drei Punkte</option><option value="laststand">Letztes Gefecht · ein Leben</option></select></div>
         <div class="map-picker"><label for="roomDifficulty">BOTS</label><select id="roomDifficulty"><option value="recruit">Rekrut</option><option value="veteran">Veteran</option><option value="ace">Ass</option></select></div>
       </div>
       <p id="lobbyHint" class="lobby-hint"></p>

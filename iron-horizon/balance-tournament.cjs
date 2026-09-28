@@ -3,10 +3,12 @@
 //  1. mirrored line-ups: each side wins 45–55 %,
 //  2. every tank pair: neither wins more than 55 % of the kills between them,
 //  3. Durchbruch: the attackers win 40–60 % over all maps,
-//  4. guide value (does not fail the run, only with --pure): pure teams (only X against only Y) at most 60 : 40 per map.
+//  4. guide value (does not fail the run, only with --pure): pure teams (only X against only Y) at most 60 : 40 per map,
+//  5. Eroberung and Letztes Gefecht: each side wins 40–60 % of the mirrored line-ups (half the rounds each).
+// With --modes only rule 5 is played.
 // With --beginner it instead estimates how often a beginner wins: the autopilot player plays at 'recruit'
 // level, the allies as veterans, the enemies at each difficulty.
-// Usage: node iron-horizon/balance-tournament.cjs [--url http://127.0.0.1:4177/iron-horizon/] [--rounds 12] [--level veteran] [--workers 4] [--pure] [--beginner]
+// Usage: node iron-horizon/balance-tournament.cjs [--url http://127.0.0.1:4177/iron-horizon/] [--rounds 12] [--level veteran] [--workers 4] [--pure] [--beginner] [--modes]
 const { chromium } = require('playwright');
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean).map(part => { const [key, ...value] = part.trim().split(/\s+/); return [key, value.join(' ') || true]; }));
 const url = args.url || 'http://127.0.0.1:4177/iron-horizon/', rounds = Number(args.rounds) || 12, level = args.level || 'veteran', workers = Number(args.workers) || 4;
@@ -23,6 +25,10 @@ if (args.beginner) {
   const lineups = { ...mirrored, 'gemischt alle': [L, K, D, K, D, L] };
   for (const enemy of ['recruit', 'veteran', 'ace']) for (const [name, vehicles] of Object.entries(lineups)) for (const map of MAPS) for (let seed = 1; seed <= rounds; seed++) jobs.push({ name, vehicles, map, mission: 'domination', seed: seed * 6007 + MAPS.indexOf(map), level: enemy, allies: 'veteran', player: 'recruit' });
 } else {
+  const newModes = { conquest: 'Eroberung', laststand: 'Letztes Gefecht' };
+  for (const [mission, title] of Object.entries(newModes)) for (const [name, vehicles] of Object.entries(mirrored)) for (const map of MAPS) for (let seed = 1; seed <= Math.ceil(rounds / 2); seed++) jobs.push({ name: `${title} ${name}`, vehicles, map, mission, seed: seed * 15485863 + MAPS.indexOf(map), level });
+}
+if (!args.beginner && !args.modes) {
   for (const [name, vehicles] of Object.entries({ ...mirrored, ...pure })) for (const map of MAPS) for (let seed = 1; seed <= rounds; seed++) jobs.push({ name, vehicles, map, mission: 'domination', seed: seed * 7919 + MAPS.indexOf(map), level });
   for (const [name, vehicles] of Object.entries(mirrored)) for (const map of MAPS) for (let seed = 1; seed <= rounds; seed++) jobs.push({ name: `Durchbruch ${name}`, vehicles, map, mission: seed % 2 ? 'attack' : 'defense', seed: seed * 104729 + MAPS.indexOf(map), level });
 }
@@ -54,6 +60,13 @@ if (args.beginner) {
     console.log('Einsteiger = Spielerpanzer per Autopilot auf Stufe Rekrut, Verbündete Veteran.');
     return;
   }
+  // 5. new modes
+  for (const [mission, title] of [['conquest', 'Eroberung'], ['laststand', 'Letztes Gefecht']]) {
+    const set = results.filter(r => r.mission === mission), side = share(set, blueScore);
+    console.log(`     ${title}: ${MAPS.map(map => `${map} Blau ${pct(share(set.filter(r => r.map === map), blueScore))}`).join(', ')}, Ø ${Math.round(share(set, r => r.seconds))} s, Unentschieden ${pct(share(set, r => r.result === 'draw' ? 1 : 0))}`);
+    rule(`5. ${title}: Blau ${pct(side)} (${set.length} Gefechte)`, side >= .4 && side <= .6);
+  }
+  if (args.modes) { console.log(`Stufe ${level}, ${results.length} Gefechte.`); process.exitCode = verdicts.every(Boolean) ? 0 : 1; return; }
   const domination = results.filter(r => r.mission === 'domination');
   console.table(Object.keys({ ...mirrored, ...pure }).map(name => Object.fromEntries([['Aufstellung', name], ...MAPS.map(map => [map, pct(share(domination.filter(r => r.name === name && r.map === map), blueScore))])])));
   // 1. sides
@@ -66,7 +79,7 @@ if (args.beginner) {
     rule(`2. ${NAMES[a]} gegen ${NAMES[b]}: ${aWins} : ${bWins} Abschüsse (${pct(s)})`, s >= .45 && s <= .55);
   }
   // 3. Durchbruch
-  const breakthrough = results.filter(r => r.mission !== 'domination'), attackersWin = r => (r.mission === 'attack') === (r.result === 'blue') ? 1 : 0;
+  const breakthrough = results.filter(r => r.mission === 'attack' || r.mission === 'defense'), attackersWin = r => (r.mission === 'attack') === (r.result === 'blue') ? 1 : 0;
   for (const map of MAPS) {
     const set = breakthrough.filter(r => r.map === map);
     console.log(`     Durchbruch ${map}: Angreifer ${pct(share(set, attackersWin))} (als Blau ${pct(share(set.filter(r => r.mission === 'attack'), attackersWin))}, als Rot ${pct(share(set.filter(r => r.mission === 'defense'), attackersWin))}), Ø ${share(set, r => r.captured).toFixed(2)} Punkte, Ø ${Math.round(share(set, r => r.seconds))} s`);

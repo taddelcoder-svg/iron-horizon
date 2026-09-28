@@ -1,4 +1,4 @@
-# Iron Horizon – Version 1.2
+# Iron Horizon – Version 1.3
 
 3D-Panzergefecht für die Swimming-Lions-Spielesammlung. Alle Laufzeitdateien einschließlich Three.js liegen im Repository; keine CDNs, Konten oder externen Dienste. Das Spiel hat bewusst keinen Ton.
 
@@ -22,9 +22,11 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
   - Wiesel: Spähpanzer mit 60 km/h, 25-mm-Maschinenkanone (1,5 s Nachladen, Schadensfaktor 0,3), Frontschutz 1,0, kleines Ziel. Schießt als Bot aus der Fahrt und flankiert.
   - Bär: schwerer Panzer mit 28 km/h, 105 mm, 7,5 s Nachladen, Schadensfaktor 2,05, Frontschutz 0,55, träger Turm (0,5 rad/s).
   - Luchs und Keiler sind immer verfügbar. Im Training fahren alle sofort; im Gefecht brauchen Wiesel den Rang „Fahrer“ (500 EP), Dachs „Frontkämpfer“ (1.200 EP) und Bär „Veteran“ (2.200 EP).
-- **Drei Modi:**
+- **Fünf Modi:**
   - Vorherrschaft: 3 gegen 3 um Punkt A.
   - Durchbruch · Angriff und Durchbruch · Verteidigung.
+  - Eroberung: drei Punkte, jedes Team startet mit seinem Heimatpunkt.
+  - Letztes Gefecht: kein Wiedereinstieg, bis zu drei Runden.
   - Dazu das Training mit fünf Übungszielen.
 - **Gegnerstärke** (gilt nur für die Gegner; deine Verbündeten kämpfen immer wie Veteranen):
   - Rekrut: Reaktion 1,2–1,8 s, 22 mrad Zielfehler, lädt 1,4–2,4 s langsamer nach als der Panzerwert, keine Flanken, kein Rauch.
@@ -53,6 +55,20 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
 - Eroberung braucht mindestens doppelt so viele Angreifer wie Verteidiger im Kreis: allein zehn Sekunden, gegen Verteidiger dreißig. Sonst ruht die Eroberung; verlassen die Angreifer den Kreis, sinkt der Fortschritt langsam.
 - Nach der Eroberung von A steigen die Angreifer vor Punkt B wieder ein. Die Verteidiger gewinnen bei Zeitablauf oder wenn den Angreifern die Tickets ausgehen.
 - Die Bots verteidigen mit einem Wächter im Kreis und zwei Überwachungsstellungen. Sobald die Eroberung beginnt, fahren alle in den Kreis.
+
+### Eroberung
+
+- Drei Punkte: A in der Mitte, B vor der blauen und C vor der roten Basis (die B-Punkte des Durchbruchs). Blau startet mit B, Rot mit C.
+- Erobern wie in der Vorherrschaft: zehn Sekunden allein im Kreis, einen gegnerischen Punkt zuvor fünf Sekunden neutralisieren; umkämpfte Punkte zählen nicht.
+- Hält ein Team mehr Punkte, verliert der Gegner alle zwei Sekunden die Differenz an Tickets (2 : 1 kostet 1, 3 : 0 kostet 3). Ein Fahrzeugverlust kostet 5. 100 Tickets je Team, sieben Minuten.
+- Bots: Der mittlere Panzer will A, der linke den eigenen Heimatpunkt, der rechte stößt zur gegnerischen Basis vor. Punkte, die das eigene Team sicher hält, überspringen sie; steht der Heimatpunkt unter Druck, fährt der linke zurück.
+
+### Letztes Gefecht
+
+- Kein Wiedereinstieg: Wer ausgeschaltet ist, sieht einem Teamkameraden zu, bis die Runde endet.
+- Eine Runde gewinnt, wer alle Gegner ausschaltet oder Punkt A insgesamt 30 Sekunden allein hält (der Gegner muss den Balken erst zurückdrücken). Nach drei Minuten entscheiden mehr übrige Panzer, dann mehr Struktur.
+- Zwei Rundensiege entscheiden; nach drei Runden zählt der Rundenstand. Zwischen den Runden fünf Sekunden Pause, dann starten alle wieder an der Basis.
+- Die Ticketanzeige zeigt die Panzer, die noch fahren.
 
 ### Kampf und Schäden
 
@@ -89,7 +105,7 @@ Auf Karten mit Höhengelände steht jedes Fahrzeug auf dem Boden und neigt sich 
 
 ## Fortschritt
 
-Nur abgeschlossene Gefechte (Vorherrschaft oder Durchbruch) geben Erfahrung:
+Nur abgeschlossene Gefechte (alle Modi außer dem Training) geben Erfahrung:
 
 - 100 für die Teilnahme, 200 für einen Sieg oder 100 für ein Unentschieden.
 - 75 je Abschuss, 10 je wirksamem Treffer, 3 je Sekunde am Ziel (höchstens 600).
@@ -125,7 +141,7 @@ Der Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-Speicher;
   - `getState()` liefert den Zustand.
   - `balance({ vehicles, map, level, seed, mission, allies, player })` spielt in der Garage ein ganzes Gefecht nur mit Bots (Spielerpanzer per Autopilot, ohne Erfahrung) und liefert Ergebnis und Abschussliste. `allies` und `player` setzen auf Wunsch eigene Stufen für die blauen Bots und den Autopiloten.
   - `sampleFrames(fps, sekunden)` prüft die automatische Grafikstufe mit künstlichen Bildzeiten.
-- `battle.js`: Vorherrschaft und Durchbruch als reine Regeln, A*-Wegsuche mit Glättung, Bot-Taktik, Positionen um Punkte, Schwierigkeitsstufen, Schlüsselmoment.
+- `battle.js`: Vorherrschaft, Durchbruch, Eroberung und Letztes Gefecht als reine Regeln, Punktwahl der Bots in der Eroberung, A*-Wegsuche mit Glättung, Bot-Taktik, Positionen um Punkte, Schwierigkeitsstufen, Schlüsselmoment.
 - `systems.js`: Fahrzeugprofile, Module, Reparatur, Abpraller, Schaden, Streuung und Rauch-Sichtprüfung.
 - `maps.js`: Kartendaten (Starts, Ziele, Überwachungsstellungen, Flanken, Punkt B, Hindernisse) und die Höhenfunktion des Flusstals.
 - `terrain.js`: statische 3D-Geometrie; Reliefnetz mit Farbverlauf, Bach und Brücke für das Flusstal. Ein Kartenwechsel gibt die alte Geometrie frei.
@@ -139,7 +155,7 @@ Der Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-Speicher;
 
 `npm test` im Repository-Ordner führt die Node-Tests aus:
 
-- `battle.test.cjs`: Eroberung, Durchbruch, Wegsuche, Taktik, Schwierigkeit, Schlüsselmoment.
+- `battle.test.cjs`: Vorherrschaft, Durchbruch, Eroberung, Letztes Gefecht, Wegsuche, Taktik, Schwierigkeit, Schlüsselmoment.
 - `systems.test.cjs`: Fahrzeuge einschließlich Dachs, Module, Reparatur, Abpraller, Schaden, Streuung, Rauch.
 - `maps.test.cjs`: freie und erreichbare Positionen, Punkt B, Hangneigung, gespiegelte Positionen aller Karten, Drehsymmetrie des Steinbruchs, Spiegelsymmetrie des Flusstals und des Wegrasters.
 - `raeume.test.cjs`: Raum erstellen und beitreten, volle Teams, nur der Gastgeber startet, Platzvergabe mit Spiegelpaaren, Weiterleitung im Gefecht, Verlassen.
@@ -156,6 +172,7 @@ Die Browser-Tests brauchen Playwright, installiertes Chrome und den laufenden Se
 - `touch-browser-test.cjs`: Handy im Querformat, Joystick, Wischen, Knöpfe, Hochformat-Hinweis.
 - `olymp-browser-test.cjs`: zwei Spieler mit selbst signierten Olympia-Tickets treffen sich, Start bei Vollzähligkeit, Teams geteilt, Abbruch durch den Gastgeber meldet trotzdem (lokaler Server ohne Passwort).
 - `online-browser-test.cjs`: zwei Browser über den Einladungslink, freie Team- und Panzerwahl, Start, Bewegung und Schüsse des Gasts beim Gastgeber, Bots und Tickets beim Gast, Gastgeber verlässt das Gefecht (Adresse über `IH_URL`).
+- `newmodes-browser-test.cjs`: Eroberung mit drei Punkten bis zum Ergebnis, Letztes Gefecht mit Runden, ohne Wiedereinstieg und mit Zuschauerkamera.
 - `modes-browser-test.cjs`: Dachs-Sperre und Richtbereich, Relief im Flusstal, Gegnerstärke nur für Gegner, automatische Grafikstufe, Durchbruch vom Start bis zum Ergebnis, Auszeichnungen und Tarnungen im Profil.
 
-`balance-tournament.cjs [--rounds 12] [--level veteran] [--workers 4] [--pure]` spielt alle zehn Panzerpaare als gespiegelte Aufstellung (mit `--pure` auch reine Teams) auf allen Karten und im Durchbruch durch und prüft die Balance-Regeln aus dem Konzept. Mit `--beginner` schätzt es stattdessen, wie oft ein Team mit einem Einsteiger gewinnt (Spielerpanzer auf Stufe Rekrut, Verbündete Veteran, Gegner auf jeder Stufe).
+`balance-tournament.cjs [--rounds 12] [--level veteran] [--workers 4] [--pure] [--modes]` spielt alle zehn Panzerpaare als gespiegelte Aufstellung (mit `--pure` auch reine Teams, mit `--modes` nur Eroberung und Letztes Gefecht) auf allen Karten und im Durchbruch durch und prüft die Balance-Regeln aus dem Konzept. Mit `--beginner` schätzt es stattdessen, wie oft ein Team mit einem Einsteiger gewinnt (Spielerpanzer auf Stufe Rekrut, Verbündete Veteran, Gegner auf jeder Stufe).

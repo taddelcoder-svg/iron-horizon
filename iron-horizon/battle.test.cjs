@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { Match, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment } = require('./battle.js');
+const { Match, Conquest, LastStand, conquestTarget, findPath, smoothPath, clearLine, botObjective, difficulties, keyMoment } = require('./battle.js');
 const advance = (match, seconds, blue = 0, red = 0) => { for (let i = 0; i < seconds * 60; i++) match.update(1 / 60, blue, red); };
 test('capture, persistent ownership, ticket drain and contested freeze', () => {
   const match = new Match(); advance(match, 11, 1, 0); assert.equal(match.owner, 'blue');
@@ -94,4 +94,53 @@ test('generated objective positions are pushed out of obstacles', () => {
   const wall = (x, z) => Math.abs(x) < 5 && Math.abs(z) < 5;
   const [x, z] = freeNear(0, 0, wall); assert.equal(wall(x, z), false); assert.ok(Math.hypot(x, z) < 10);
   const layout = pointLayout({ x: 0, z: -10 }, 1); assert.ok(layout.slots.every(([, sz]) => sz > -10)); assert.ok(layout.holds.every(([, hz]) => hz > -10));
+});
+
+const points = (match, seconds, counts) => { for (let i = 0; i < seconds * 60; i++) match.update(1 / 60, counts); };
+test('Eroberung: each team starts with its home point; a majority drains the difference every 2 s', () => {
+  const match = new Conquest(); assert.deepEqual(match.points.map(p => p.owner), [null, 'blue', 'red']);
+  points(match, 4, [[0, 0], [0, 0], [0, 0]]); assert.deepEqual(match.tickets, { blue: 100, red: 100 }, 'one point each: no drain');
+  points(match, 11, [[1, 0], [0, 0], [0, 0]]); assert.equal(match.points[0].owner, 'blue');
+  const before = match.tickets.red; points(match, 4, [[0, 0], [0, 0], [0, 0]]); assert.equal(before - match.tickets.red, 2, '2 : 1 drains one ticket per 2 s');
+  // Blue neutralises C in 5 s and takes it in 10 more: now three points against none.
+  points(match, 16, [[0, 0], [0, 0], [1, 0]]); assert.equal(match.points[2].owner, 'blue');
+  const three = match.tickets.red; points(match, 4, [[0, 0], [0, 0], [0, 0]]); assert.equal(three - match.tickets.red, 6);
+  // A contested point does not count.
+  const frozen = match.tickets.red; points(match, 4, [[1, 1], [1, 1], [1, 1]]); assert.equal(match.tickets.red, frozen);
+  match.lose('red', 100); assert.equal(match.result, 'blue');
+});
+test('Eroberung: bots skip points their team holds safely; the roles are the same for both teams', () => {
+  const start = new Conquest().points;
+  assert.deepEqual([0, 1, 2].map(i => conquestTarget('blue', i, start)), [0, 0, 0], 'home points are safe, everyone goes for A');
+  assert.deepEqual([0, 1, 2].map(i => conquestTarget('red', i, start)), [0, 0, 0]);
+  const aBlue = start.map(p => ({ ...p })); Object.assign(aBlue[0], { owner: 'blue', progress: 1 });
+  assert.deepEqual([0, 1, 2].map(i => conquestTarget('blue', i, aBlue)), [2, 2, 2], 'A and home safe: push the enemy base');
+  const homeLost = start.map(p => ({ ...p })); Object.assign(homeLost[1], { owner: 'blue', progress: .4 });
+  assert.equal(conquestTarget('blue', 0, homeLost), 1, 'the left tank rushes back to a home point under attack');
+  assert.equal(conquestTarget('blue', 2, homeLost), 0, 'the centre tank stays on A');
+  const mirror = start.map(p => ({ ...p })); Object.assign(mirror[2], { owner: 'red', progress: -.4 });
+  assert.equal(conquestTarget('red', 0, mirror), 2);
+});
+const stand = (match, seconds, blue, red, hp) => { for (let i = 0; i < seconds * 60; i++) match.update(1 / 60, blue, red, hp); };
+test('Letztes Gefecht: a round ends by elimination, by holding A or on time; two wins decide', () => {
+  const match = new LastStand();
+  match.lose('red'); match.lose('red'); assert.equal(match.roundWinner, null); match.lose('red');
+  assert.equal(match.roundWinner, 'blue'); assert.deepEqual(match.wins, { blue: 1, red: 0 }); assert.equal(match.pause, LastStand.PAUSE); assert.equal(match.result, null);
+  match.lose('blue'); assert.equal(match.tickets.blue, 3, 'no losses between rounds');
+  stand(match, LastStand.PAUSE + .1, 0, 0); assert.equal(match.round, 2); assert.deepEqual(match.tickets, { blue: 3, red: 3 });
+  // Round 2: red holds A, blue pushes the bar back for 10 s, then red holds on.
+  stand(match, 20, 0, 1); stand(match, 10, 1, 0); assert.ok(Math.abs(match.progress + 10 / 30) < .01);
+  stand(match, 5, 1, 1); assert.equal(match.contested, true); stand(match, 21, 0, 1); assert.equal(match.roundWinner, 'red');
+  assert.deepEqual(match.wins, { blue: 1, red: 1 });
+  // Round 3 on time: equal tanks, more hit points win.
+  stand(match, LastStand.PAUSE + .1, 0, 0); match.lose('blue'); match.lose('red');
+  stand(match, LastStand.ROUND + 1, 0, 0, { blue: 150, red: 90 }); assert.equal(match.result, 'blue'); assert.deepEqual(match.wins, { blue: 2, red: 1 });
+});
+test('Letztes Gefecht: after three rounds the round score decides, drawn rounds count for nobody', () => {
+  const match = new LastStand();
+  const draw = () => { stand(match, LastStand.ROUND + 1, 0, 0, { blue: 300, red: 300 }); stand(match, LastStand.PAUSE + .1, 0, 0); };
+  draw(); assert.deepEqual(match.wins, { blue: 0, red: 0 }); assert.equal(match.round, 2);
+  match.lose('blue'); match.lose('blue'); match.lose('blue'); stand(match, LastStand.PAUSE + .1, 0, 0);
+  stand(match, LastStand.ROUND + 1, 0, 0, { blue: 300, red: 300 });
+  assert.equal(match.result, 'red'); assert.deepEqual(match.wins, { blue: 0, red: 1 });
 });

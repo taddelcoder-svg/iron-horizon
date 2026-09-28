@@ -9,7 +9,7 @@
 
 const FAHRZEUGE = ['luchs', 'keiler', 'dachs', 'wiesel', 'baer'];
 const KARTEN = ['border', 'quarry', 'valley'];
-const MODI = ['domination', 'attack', 'defense'];
+const MODI = ['domination', 'attack', 'defense', 'conquest', 'laststand'];
 const STUFEN = ['recruit', 'veteran', 'ace'];
 const MAX = 6;
 // Sechs feste Plätze: Blau 0 (Mitte), 1, 2 · Rot 5 (Mitte), 3, 4. Spiegelpaare 0↔5, 1↔3, 2↔4.

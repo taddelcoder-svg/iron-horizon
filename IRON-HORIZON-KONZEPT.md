@@ -1,6 +1,6 @@
 # Iron Horizon – Spielkonzept
 
-Stand: 27. September 2026 · Konzept 2.0 · Spielstand: Version 1.0
+Stand: 28. September 2026 · Konzept 2.0 · Spielstand: Version 1.3
 
 Dieses Dokument beschreibt Iron Horizon in der fertigen Version 1.0: Ziele, Regeln, Fahrzeuge, Karten, Bots, Fortschritt, Technik, die gemessene Balance und was nach 1.0 kommen kann. Zahlen sind Spielwerte, keine historischen Daten.
 
@@ -81,11 +81,34 @@ Die gewünschte Erfahrung: Du verstehst nach dem Gefecht, welche Entscheidung de
 
 Die Verteidiger-Bots halten den aktiven Punkt mit einem Wächter im Kreis und zwei Überwachungsstellungen dahinter. Sobald die Angreifer Fortschritt machen, fahren alle in den Kreis. Positionen um Punkt B werden aus dem Punkt berechnet und automatisch aus Hindernissen geschoben, damit der Modus auf jeder Karte ohne Handarbeit funktioniert. Rot bekommt dabei exakt das Spiegelbild der blauen Positionen, sodass Angriff und Verteidigung für beide Seiten gleich schwer sind.
 
-### 5.3 Training ✅
+### 5.3 Eroberung ✅ (1.3)
+
+| Regel | Wert |
+| --- | --- |
+| Punkte | A in der Kartenmitte, B vor der blauen, C vor der roten Basis (die B-Punkte des Durchbruchs, also spiegelgleich) |
+| Start | Blau hält B, Rot hält C, A ist neutral |
+| Erobern | Wie in der Vorherrschaft: 10 Sekunden allein, gegnerische Punkte vorher 5 Sekunden neutralisieren; umkämpfte Punkte zählen nicht |
+| Tickets | 100 je Team. Wer mehr Punkte hält, zieht dem Gegner alle 2 Sekunden die Differenz ab; ein Fahrzeugverlust kostet 5 |
+| Zeit und Sieg | 7 Minuten; Gegner ohne Tickets oder mehr Tickets bei Zeitablauf |
+
+Jeder Bot wählt seinen Punkt selbst (`conquestTarget`): Der mittlere Panzer will A, der linke den eigenen Heimatpunkt, der rechte die gegnerische Basis. Punkte, die das eigene Team sicher hält, überspringt er; am Anfang fahren deshalb alle zu A, danach stoßen zwei zur gegnerischen Basis vor, und wird der eigene Heimatpunkt angegriffen, kehrt der linke zurück. Die Positionen um B und C entstehen wie im Durchbruch aus dem Punkt, Rot bekommt das Spiegelbild.
+
+### 5.4 Letztes Gefecht ✅ (1.3)
+
+| Regel | Wert |
+| --- | --- |
+| Leben | Eines pro Runde; wer draußen ist, sieht einem Teamkameraden zu |
+| Rundensieg | Alle Gegner ausgeschaltet, oder Punkt A insgesamt 30 Sekunden allein gehalten (ein Balken, den der Gegner erst zurückdrücken muss); nach 3 Minuten mehr Panzer, dann mehr Struktur |
+| Gefecht | Zwei Rundensiege; nach drei Runden der Rundenstand. 5 Sekunden Pause, dann starten alle wieder an der Basis |
+| Anzeige | Die Tickets zeigen die Panzer, die noch fahren |
+
+Ein einziges Leben ohne Runden war nach etwa 45 Sekunden vorbei. Mit bis zu drei Runden dauert ein Gefecht zwei bis drei Minuten und bleibt kurz genug für die Olympiade.
+
+### 5.5 Training ✅
 
 Testgelände auf der gewählten Karte: fünf stationäre Ziele, kein Gegenfeuer, kein Zeitlimit, keine Erfahrung. Hier lassen sich Fahrgefühl, Streuung, Abpraller und der Dachs gefahrlos ausprobieren.
 
-### 5.4 Online-Gefechte ✅ (1.1)
+### 5.6 Online-Gefechte ✅ (1.1)
 
 | Punkt | Festlegung |
 | --- | --- |
@@ -116,7 +139,7 @@ Testgelände auf der gewählten Karte: fünf stationäre Ziele, kein Gegenfeuer,
 
 **Grenzen:** Browser drosseln Hintergrund-Tabs stark. Der Gastgeber muss seinen Tab deshalb im Vordergrund lassen; das Spiel sagt ihm das beim Start. 💡 Später: Gastgeberwechsel, wenn der Tab in den Hintergrund geht.
 
-### 5.5 Einsätze 💡
+### 5.7 Einsätze 💡
 
 Kurze Solo-Aufgaben mit festen Zielen, zum Beispiel „Konvoi abfangen“, „Stellung halten“ oder „Aufklärung“. Bis zu drei Sterne je Einsatz; Grundlage einer späteren Kampagne.
 
@@ -167,6 +190,15 @@ Das Modell des Dachs ersetzt den Turm durch einen flachen Kasemattaufbau mit lan
 | 3. Durchbruch | Angreifer 49 % (Grenzposten 47 %, Steinbruch 49 %, Flusstal 50 %) | ✅ |
 
 Wiesel gegen Bär ist ein gewolltes Gegenstück: Die Maschinenkanone prallt an der dicken Front ab, das Wiesel muss an die Seite. Den Ausschlag gaben beim Abstimmen die Schuss-Zahlen: Mit Schadensfaktor 2,2 schaltete der Bär Luchs und Wiesel mit zwei frontalen Treffern aus, mit 2,05 braucht er drei. Die Frontpanzerung dagegen änderte kaum etwas.
+
+**Neue Modi 1.3** (Regel 5, `--modes`: alle zehn gespiegelten Aufstellungen, je Karte 6 Gefechte, 360 Gefechte):
+
+| Modus | Blau gewinnt | Je Karte | Dauer |
+| --- | --- | --- | --- |
+| Eroberung | 47 % ✅ | Grenzposten 49 %, Steinbruch 48 %, Flusstal 43 % | Ø 6 Minuten, 4 % unentschieden |
+| Letztes Gefecht | 51 % ✅ | Grenzposten 45 %, Steinbruch 50 %, Flusstal 57 % | Ø 2,5 Minuten |
+
+Die Abweichungen je Karte liegen bei 60 Gefechten in der Streuung (etwa ±6 Punkte).
 
 **Reine Teams** (Lauf aus 1.0 mit drei Panzern, je Paarung und Karte 32 Gefechte; mit `--pure` für alle zehn Paare messbar):
 
@@ -352,6 +384,9 @@ Keine Reparaturkosten, kein Teilnahmezwang, keine bezahlten Vorteile.
 | 0.5 | Zwei Karten, zwei Panzer, Vorherrschaft, Training, Fortschritt |
 | 0.6 | Bot-Taktik, Abpraller, Turmantrieb, Streuung, Schadensschema, Touch-Steuerung, Grafikstufen, Einsatzbesprechung, Server mit Passwort und Datenschutz |
 | 0.7 | Schwierigkeitsstufen, Treffermarker und Funken, Y-Achse umkehren, Bildratenanzeige, Schlüsselmoment, Balance-Turnier, spiegelgleiche Karten |
+| 1.1 | Online-Gefechte mit Raumcode und freier Panzerwahl, Olympia-Schlacht als gemeinsames Gefecht |
+| 1.2 | Panzer Wiesel (Spähpanzer) und Bär (schwerer Panzer), Balance über alle zehn Panzerpaare |
+| 1.3 | Modi Eroberung (drei Punkte) und Letztes Gefecht (ein Leben, bis zu drei Runden) mit Zuschauerkamera, auch online; Fehler behoben, durch den ein Online-Gast nach dem Wiedereinstieg veraltete Daten der anderen Panzer sah |
 | 1.0 | Ton entfernt, Dachs (Jagdpanzer) mit Freischaltung, Modus Durchbruch mit Punkt B auf allen Karten, Karte Flusstal mit Höhengelände, ausgeloste gespiegelte Bot-Aufstellungen, acht Auszeichnungen, zwei neue Tarnungen, erweitertes Balance-Turnier; exakt gleiche Bedingungen für beide Seiten, Gegnerstärke nur für die Gegner, automatische Grafikstufe |
 
 **1.0 ist fertig, wenn:**
@@ -365,7 +400,7 @@ Keine Reparaturkosten, kein Teilnahmezwang, keine bezahlten Vorteile.
 ## 16. Mögliche Ausbaustufen 💡
 
 - **Kampagne:** fünf verbundene Einsätze mit bleibendem Fahrzeugzustand und Besatzungserfahrung.
-- **Weitere Schlachttypen** (neue Modi).
+- **Weitere Schlachttypen**, etwa Geleitschutz (einen langsamen Konvoi durchbringen) oder Stellungskampf mit zerstörbaren Zielen.
 - **Gastgeberwechsel** im laufenden Online-Gefecht.
 - **Gamepad-Steuerung**, getrennte Touch-Empfindlichkeit, Linkshänder-Anordnung.
 - **Weitere Karten** mit Höhengelände (die Höhenfunktion ist allgemein angelegt).
@@ -378,7 +413,7 @@ Flugzeuge, Schiffe, mehrere Realismusmodi, große Forschungsbäume und zerstörb
 - **Ton:** keiner. Der Klang war nicht gut genug und wurde vollständig entfernt.
 - **Balance:** Regeln 1–3 sind erfüllt. Reine Teams bleiben ein Richtwert und zeigen den Charakter der Karten (Abschnitt 6).
 - **Gegnerstärke:** gilt nur für die Gegner; deine Verbündeten kämpfen immer wie Veteranen.
-- **Nach 1.0:** Online-Gefechte mit freier Panzerwahl und die Olympia-Disziplin als gemeinsames Gefecht (1.1), dazu die Panzer Wiesel und Bär (1.2), später neue Schlachttypen.
+- **Nach 1.0:** Online-Gefechte mit freier Panzerwahl und die Olympia-Disziplin als gemeinsames Gefecht (1.1), dazu die Panzer Wiesel und Bär (1.2) und die Modi Eroberung und Letztes Gefecht (1.3).
 - **Offen – Name:** „Iron Horizon“ bleibt, oder ein deutscher Name wie bei den anderen Spielen der Sammlung (zum Beispiel „Stahlhorizont“)?
 
 ## 18. Spielekarte für die Sammlung

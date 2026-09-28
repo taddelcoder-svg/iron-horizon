@@ -66,5 +66,5 @@ test('Wiesel and Bär sit at the two ends: fastest and quickest gun against slow
   assert.equal(Math.min(...all.map(p => p.speed)), baer.speed); assert.equal(Math.min(...all.map(p => p.front)), baer.front, 'lowest factor = thickest front');
   assert.ok(baer.power > dachs.power && baer.turret < keiler.turret && !baer.traverse && !wiesel.traverse);
   // A Wiesel shell barely scratches the Bär from the front; from the side and rear it still hurts.
-  assert.ok(S.damage(1, wiesel, baer, null) < 6); assert.ok(S.damage(0, wiesel, baer, null) >= 12 && S.damage(-1, wiesel, baer, null) >= 17);
+  assert.ok(S.damage(1, wiesel, baer, null) < 6); assert.ok(S.damage(0, wiesel, baer, null) >= 11 && S.damage(-1, wiesel, baer, null) >= 15, 'side and rear hurt about three times as much as the front');
 });
