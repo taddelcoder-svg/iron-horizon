@@ -64,3 +64,10 @@ test('awards: map tour, thick skin and field repairs accumulate across rounds', 
 test('the Dachs needs rank Frontkämpfer for battles', () => {
   assert.equal(C.vehicleUnlocked('dachs', 1199), false); assert.equal(C.vehicleUnlocked('dachs', 1200), true); assert.equal(C.vehicleUnlocked('luchs', 0), true);
 });
+
+test('Wiesel from Fahrer, Bär from Veteran; old saves get olive paint for the new tanks', () => {
+  assert.equal(C.vehicleUnlocked('wiesel', 499), false); assert.equal(C.vehicleUnlocked('wiesel', 500), true);
+  assert.equal(C.vehicleUnlocked('baer', 2199), false); assert.equal(C.vehicleUnlocked('baer', 2200), true);
+  const old = { ...C.empty(), paints: { luchs: 'olive', keiler: 'olive', dachs: 'olive' } };
+  const clean = C.validate(old); assert.equal(clean.paints.wiesel, 'olive'); assert.equal(clean.paints.baer, 'olive');
+});

@@ -49,13 +49,22 @@ test('standing still is more accurate than driving', () => {
   const { luchs, keiler } = S.profiles;
   assert.ok(S.spread(luchs, 0) < S.spread(luchs, 1) / 4); assert.ok(S.spread(keiler, .5) > S.spread(luchs, .5)); assert.ok(S.spread(luchs, 0, 1) > S.spread(luchs, 0));
 });
-test('the Dachs trades its turret for the biggest gun and the strongest front', () => {
+test('the Dachs trades its turret for a big gun and a strong front', () => {
   const { luchs, keiler, dachs } = S.profiles;
-  assert.deepEqual(S.VEHICLES, ['luchs', 'keiler', 'dachs']);
+  assert.deepEqual(S.VEHICLES, ['luchs', 'keiler', 'wiesel', 'baer', 'dachs']);
   assert.ok(dachs.traverse > 0 && dachs.traverse < .25 && !luchs.traverse && !keiler.traverse);
   assert.ok(dachs.power > keiler.power && dachs.front <= keiler.front && dachs.reload > keiler.reload && dachs.speed < keiler.speed);
   const casemate = S.fresh(); assert.equal(S.hitModule(casemate, { x: .3, y: 1.9, z: 0 }, dachs), null, 'casemate roof is plain armour');
   assert.equal(S.hitModule(casemate, { x: .2, y: 2.1, z: -2.5 }, dachs), 'turret', 'gun mantlet');
   assert.equal(S.hitModule(S.fresh(), { x: .2, y: 1.7, z: -2 }, dachs), null, 'lower front plate is plain armour');
   assert.equal(S.damage(1, dachs, luchs, null), 46); assert.equal(S.damage(1, luchs, dachs, null), 14);
+});
+
+test('Wiesel and Bär sit at the two ends: fastest and quickest gun against slowest with the thickest front', () => {
+  const { luchs, keiler, dachs, wiesel, baer } = S.profiles, all = [luchs, keiler, dachs, wiesel, baer];
+  assert.equal(Math.max(...all.map(p => p.speed)), wiesel.speed); assert.equal(Math.min(...all.map(p => p.reload)), wiesel.reload);
+  assert.equal(Math.min(...all.map(p => p.speed)), baer.speed); assert.equal(Math.min(...all.map(p => p.front)), baer.front, 'lowest factor = thickest front');
+  assert.ok(baer.power > dachs.power && baer.turret < keiler.turret && !baer.traverse && !wiesel.traverse);
+  // A Wiesel shell barely scratches the Bär from the front; from the side and rear it still hurts.
+  assert.ok(S.damage(1, wiesel, baer, null) < 6); assert.ok(S.damage(0, wiesel, baer, null) >= 12 && S.damage(-1, wiesel, baer, null) >= 17);
 });

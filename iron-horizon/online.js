@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
-  const NAMES = { luchs: 'Luchs', keiler: 'Keiler', dachs: 'Dachs' };
+  const NAMES = { luchs: 'Luchs', keiler: 'Keiler', dachs: 'Dachs', wiesel: 'Wiesel', baer: 'Bär' };
   const handlers = {};
   let socket = null, room = null, queue = [], closedByUs = false, retry = 0;
   let canUse = () => true, pendingCode = null, olympTicket = null, countdown = null;

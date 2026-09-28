@@ -53,8 +53,8 @@
       }
       this.finish();
     }
-    // 100 tickets = 20 losses; tuned with the balance tournament so attackers win about half their matches.
-    static get TICKETS() { return 100; }
+    // 110 tickets = 22 losses; tuned with the balance tournament so attackers win about half their matches.
+    static get TICKETS() { return 110; }
     lose(team, amount = 5) { if (this.result || team !== this.attacker) return; this.tickets[team] = Math.max(0, this.tickets[team] - amount); this.finish(); }
     finish() {
       if (this.result) return;

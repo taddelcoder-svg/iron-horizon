@@ -1,8 +1,8 @@
 # Iron Horizon
 
-3D-Panzerkampfspiel im Browser, **Version 1.1**:
+3D-Panzerkampfspiel im Browser, **Version 1.2**:
 
-- **Inhalt:** drei Karten (eine davon mit Hügeln und Flussbett), drei Panzer, die Modi Vorherrschaft und Durchbruch, drei Gegnerstärken, Training und ein Fahrerprofil mit Rängen, Tarnungen und Auszeichnungen.
+- **Inhalt:** drei Karten (eine davon mit Hügeln und Flussbett), fünf Panzer, die Modi Vorherrschaft und Durchbruch, drei Gegnerstärken, Training und ein Fahrerprofil mit Rängen, Tarnungen und Auszeichnungen.
 - **Online:** Räume mit Code für bis zu 6 Spieler, freie Team- und Panzerwahl, leere Plätze füllen Bots.
 - **Steuerung:** Maus und Tastatur oder Touch auf Handy und Tablet.
 - **Technik:** Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
@@ -30,7 +30,9 @@ Danach `http://localhost:10400/` öffnen (leitet auf `/iron-horizon/` weiter). O
 - **Panzer:**
   - Luchs: schnell.
   - Keiler: starke Front.
+  - Wiesel: Spähpanzer mit Maschinenkanone, im Gefecht ab Rang Fahrer.
   - Dachs: Jagdpanzer ohne Turm, im Gefecht ab Rang Frontkämpfer.
+  - Bär: schwerer Panzer mit dicker Front, im Gefecht ab Rang Veteran.
 - **Modi:**
   - Vorherrschaft: Punkt A halten.
   - Durchbruch: erst A, dann B erobern oder verteidigen, die Seite ist frei wählbar.

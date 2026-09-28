@@ -2,7 +2,7 @@
 (function (scope) {
   'use strict';
   const KEY = 'iron-horizon-career-v1';
-  const VEHICLES = ['luchs', 'keiler', 'dachs'], MAPS = ['border', 'quarry', 'valley'];
+  const VEHICLES = ['luchs', 'keiler', 'dachs', 'wiesel', 'baer'], MAPS = ['border', 'quarry', 'valley'];
   // A paint unlocks either by experience (xp) or by earning an award.
   const paints = Object.freeze([
     { id: 'olive', name: 'Dienstoliv', xp: 0, colors: ['#737c50'] },
@@ -23,10 +23,11 @@
     { id: 'ace-win', name: 'Ass-Sieg', text: 'Gewinne gegen Ass-Gegner. Schaltet die Tarnung „Swimming Lions“ frei.' }
   ]);
   const ranks = [{ name: 'Rekrut', xp: 0 }, { name: 'Fahrer', xp: 500 }, { name: 'Frontkämpfer', xp: 1200 }, { name: 'Veteran', xp: 2200 }, { name: 'Panzer-Ass', xp: 3500 }];
-  // The Dachs is the only vehicle behind progress: always in training, in battles from Frontkämpfer.
-  const VEHICLE_XP = { luchs: 0, keiler: 0, dachs: 1200 };
+  // Vehicles behind progress are always free in training; in battles they need a rank:
+  // Wiesel from Fahrer, Dachs from Frontkämpfer, Bär from Veteran.
+  const VEHICLE_XP = { luchs: 0, keiler: 0, wiesel: 500, dachs: 1200, baer: 2200 };
   function vehicleUnlocked(vehicle, xp) { return xp >= (VEHICLE_XP[vehicle] ?? Infinity); }
-  function empty() { return { format: 'iron-horizon', version: 1, xp: 0, matches: 0, wins: 0, draws: 0, kills: 0, hits: 0, deaths: 0, captureSeconds: 0, bestXp: 0, bounced: 0, paints: { luchs: 'olive', keiler: 'olive', dachs: 'olive' }, awards: [], mapWins: { border: 0, quarry: 0, valley: 0 }, recentRounds: [] }; }
+  function empty() { return { format: 'iron-horizon', version: 1, xp: 0, matches: 0, wins: 0, draws: 0, kills: 0, hits: 0, deaths: 0, captureSeconds: 0, bestXp: 0, bounced: 0, paints: { luchs: 'olive', keiler: 'olive', dachs: 'olive', wiesel: 'olive', baer: 'olive' }, awards: [], mapWins: { border: 0, quarry: 0, valley: 0 }, recentRounds: [] }; }
   function paintUnlocked(paint, state) { return paint.award ? state.awards.includes(paint.award) : state.xp >= paint.xp; }
   const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000000000;
   // Older saves (0.5–0.7) lack the Dachs paint, awards, map wins and ricochet count; they load with defaults.
@@ -48,7 +49,7 @@
       if (MAPS.reduce((sum, map) => sum + clean.mapWins[map], 0) > clean.wins) throw new Error('Die Statistik im Spielstand ist widersprüchlich.');
     }
     for (const vehicle of VEHICLES) {
-      const id = value.paints?.[vehicle] ?? (vehicle === 'dachs' ? 'olive' : undefined);
+      const id = value.paints?.[vehicle] ?? (['luchs', 'keiler'].includes(vehicle) ? undefined : 'olive');
       const paint = paints.find(p => p.id === id);
       if (!paint || !paintUnlocked(paint, clean)) throw new Error('Der Spielstand enthält eine ungültige oder gesperrte Tarnung.');
       clean.paints[vehicle] = paint.id;
@@ -119,6 +120,6 @@
       const next = validate(this.state); next.paints[vehicle] = paintId; this.commit(next); return true;
     }
   }
-  const api = { KEY, VEHICLES, MAPS, paints, awards, ranks, empty, validate, rank, rewards, award, paintUnlocked, vehicleUnlocked, Store };
+  const api = { KEY, VEHICLES, VEHICLE_XP, MAPS, paints, awards, ranks, empty, validate, rank, rewards, award, paintUnlocked, vehicleUnlocked, Store };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else scope.IronCareer = api;
 })(typeof window !== 'undefined' ? window : globalThis);

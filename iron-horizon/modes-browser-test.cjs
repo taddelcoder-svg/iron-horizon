@@ -46,7 +46,7 @@ const path = require('node:path');
     assert.equal(s.quality, 'high'); assert.equal(await page.evaluate(() => window.ironHorizon.sampleFrames(60, 5)), 'high');
     assert.equal(await page.evaluate(() => window.ironHorizon.sampleFrames(20, 5)), 'medium'); assert.match(await page.locator('#notice').textContent(), /GRAFIK AUTOMATISCH AUF MITTEL/);
     assert.equal(await page.locator('#quality').inputValue(), 'medium');
-    assert.equal(await page.locator('#redTickets').textContent(), '∞'); assert.equal(await page.locator('#blueTickets').textContent(), '100');
+    assert.equal(await page.locator('#redTickets').textContent(), '∞'); assert.equal(await page.locator('#blueTickets').textContent(), '110');
     assert.equal(await page.locator('#objectiveTitle').textContent(), 'Erobere Punkt A'); assert.match(await page.locator('#matchLabel').textContent(), /DURCHBRUCH/);
     await page.screenshot({ path: path.join(output, 'breakthrough-start.png') });
     s = await page.evaluate(() => { let s; for (let i = 0; i < 1200; i++) { s = window.ironHorizon.sim(1); if (s.mode !== 'playing') break; } return s; });

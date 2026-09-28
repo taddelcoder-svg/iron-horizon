@@ -1,4 +1,4 @@
-# Iron Horizon – Version 1.1
+# Iron Horizon – Version 1.2
 
 3D-Panzergefecht für die Swimming-Lions-Spielesammlung. Alle Laufzeitdateien einschließlich Three.js liegen im Repository; keine CDNs, Konten oder externen Dienste. Das Spiel hat bewusst keinen Ton.
 
@@ -15,11 +15,13 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
 ## Spielumfang
 
 - **Drei Karten:** Grenzposten (Dorf, Hauptstraße, Wiesenflanken), Steinbruch (Felsriegel, seitliche Zufahrten) und Flusstal. Das Flusstal hat als einzige Karte Höhengelände: einen Hügelkamm im Osten, ein trockenes Flussbett im Westen und einen Bach mit Steinbrücke unter Punkt A. Beide Teams bekommen dasselbe Gelände: Grenzposten und Flusstal sind an Punkt A gespiegelt, der Steinbruch ist um 180° gedreht. Das gilt für alle Positionen, Punkt B, das Wegraster der Bots und auch Bäume und Deko.
-- **Drei Panzer:**
+- **Fünf Panzer:**
   - Luchs: 52 km/h, 40 mm, 3 s Nachladen.
   - Keiler: 36 km/h, 75 mm, 5 s Nachladen, Frontschutz 0,7.
   - Dachs: Jagdpanzer mit 34 km/h, 88 mm, 6,5 s Nachladen, Schadensfaktor 1,9 und Frontschutz 0,59. Er hat keinen Turm; die Kanone schwenkt nur ±12°. Steht der Dachs und lenkt der Fahrer nicht, dreht sich die Wanne selbst zum Ziel.
-  - Luchs und Keiler sind immer verfügbar. Der Dachs fährt im Training sofort, im Gefecht ab Rang „Frontkämpfer“ (1.200 EP).
+  - Wiesel: Spähpanzer mit 60 km/h, 25-mm-Maschinenkanone (1,5 s Nachladen, Schadensfaktor 0,3), Frontschutz 1,0, kleines Ziel. Schießt als Bot aus der Fahrt und flankiert.
+  - Bär: schwerer Panzer mit 28 km/h, 105 mm, 7,5 s Nachladen, Schadensfaktor 2,05, Frontschutz 0,55, träger Turm (0,5 rad/s).
+  - Luchs und Keiler sind immer verfügbar. Im Training fahren alle sofort; im Gefecht brauchen Wiesel den Rang „Fahrer“ (500 EP), Dachs „Frontkämpfer“ (1.200 EP) und Bär „Veteran“ (2.200 EP).
 - **Drei Modi:**
   - Vorherrschaft: 3 gegen 3 um Punkt A.
   - Durchbruch · Angriff und Durchbruch · Verteidigung.
@@ -47,7 +49,7 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
 ### Durchbruch
 
 - Die Angreifer müssen erst Punkt A, dann Punkt B erobern. Punkt B liegt zwischen A und der Basis der Verteidiger, im Steinbruch neben dem Felsriegel.
-- Angreifer: 100 Tickets, Verteidiger unbegrenzt. Start mit fünf Minuten, jeder eroberte Punkt bringt drei Minuten.
+- Angreifer: 110 Tickets, Verteidiger unbegrenzt. Start mit fünf Minuten, jeder eroberte Punkt bringt drei Minuten.
 - Eroberung braucht mindestens doppelt so viele Angreifer wie Verteidiger im Kreis: allein zehn Sekunden, gegen Verteidiger dreißig. Sonst ruht die Eroberung; verlassen die Angreifer den Kreis, sinkt der Fortschritt langsam.
 - Nach der Eroberung von A steigen die Angreifer vor Punkt B wieder ein. Die Verteidiger gewinnen bei Zeitablauf oder wenn den Angreifern die Tickets ausgehen.
 - Die Bots verteidigen mit einem Wächter im Kreis und zwei Überwachungsstellungen. Sobald die Eroberung beginnt, fahren alle in den Kreis.
@@ -156,4 +158,4 @@ Die Browser-Tests brauchen Playwright, installiertes Chrome und den laufenden Se
 - `online-browser-test.cjs`: zwei Browser über den Einladungslink, freie Team- und Panzerwahl, Start, Bewegung und Schüsse des Gasts beim Gastgeber, Bots und Tickets beim Gast, Gastgeber verlässt das Gefecht (Adresse über `IH_URL`).
 - `modes-browser-test.cjs`: Dachs-Sperre und Richtbereich, Relief im Flusstal, Gegnerstärke nur für Gegner, automatische Grafikstufe, Durchbruch vom Start bis zum Ergebnis, Auszeichnungen und Tarnungen im Profil.
 
-`balance-tournament.cjs [--rounds 12] [--level veteran] [--workers 4]` spielt alle Aufstellungen auf allen Karten und im Durchbruch durch und prüft die Balance-Regeln aus dem Konzept. Mit `--beginner` schätzt es stattdessen, wie oft ein Team mit einem Einsteiger gewinnt (Spielerpanzer auf Stufe Rekrut, Verbündete Veteran, Gegner auf jeder Stufe).
+`balance-tournament.cjs [--rounds 12] [--level veteran] [--workers 4] [--pure]` spielt alle zehn Panzerpaare als gespiegelte Aufstellung (mit `--pure` auch reine Teams) auf allen Karten und im Durchbruch durch und prüft die Balance-Regeln aus dem Konzept. Mit `--beginner` schätzt es stattdessen, wie oft ein Team mit einem Einsteiger gewinnt (Spielerpanzer auf Stufe Rekrut, Verbündete Veteran, Gegner auf jeder Stufe).

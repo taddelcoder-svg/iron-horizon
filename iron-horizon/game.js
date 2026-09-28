@@ -99,6 +99,14 @@
     const hullMeshes = []; root.traverse(object => { if (object.isMesh && object.material === mat(color)) { object.material = object.material.clone(); hullMeshes.push(object); } });
     scene.add(root); return { root, turret, gun, wheels, turretBody, casemate, gunBase: -1.25, hullMeshes };
   }
+  // Model proportions per vehicle: hull, turret and gun scale; the Dachs swaps its turret for a casemate.
+  const LOOKS = {
+    luchs: { hull: [1, 1, 1], turret: [1, 1, 1], gun: [1, 1, 1] },
+    keiler: { hull: [1.12, 1.08, 1.1], turret: [1.16, 1.1, 1.06], gun: [1.65, 1.65, 1.18] },
+    dachs: { hull: [1.06, .96, 1.08], turret: [1, 1, 1], gun: [1.9, 1.9, 1.35], casemate: true },
+    wiesel: { hull: [.86, .84, .88], turret: [.74, .82, .74], gun: [.62, .62, 1.08] },
+    baer: { hull: [1.24, 1.16, 1.2], turret: [1.36, 1.22, 1.26], gun: [2.05, 2.05, 1.32] }
+  };
   const tank = makeTank('#737c50');
   const player = { ...tank, id: 'player', slot: 0, team: 'blue', callsign: 'DU', hp: 100, alive: true, respawn: 0, shield: 3, hitMeshes: [], yaw: 0, profile: Systems.profiles.luchs, systems: Systems.fresh(), lastHit: null };
   tank.root.traverse(object => { if (object.isMesh) { object.userData.vehicle = player; player.hitMeshes.push(object); } });
@@ -143,12 +151,11 @@
     bot.systems = Systems.fresh(); applyProfile(bot, i === 1 || i === 3 ? 'keiler' : 'luchs');
   });
   function applyProfile(vehicle, id) {
-    vehicle.profile = Systems.profiles[id]; const heavy = id === 'keiler', casemate = id === 'dachs';
-    vehicle.root.scale.set(heavy ? 1.12 : casemate ? 1.06 : 1, heavy ? 1.08 : casemate ? .96 : 1, heavy ? 1.1 : casemate ? 1.08 : 1);
+    vehicle.profile = Systems.profiles[id]; const look = LOOKS[id], casemate = !!look.casemate;
+    vehicle.root.scale.set(...look.hull);
     vehicle.turretBody.forEach(mesh => { mesh.visible = !casemate; }); vehicle.casemate.forEach(mesh => { mesh.visible = casemate; });
     vehicle.turret.position.y = casemate ? 1.62 : 1.75; vehicle.gunBase = casemate ? -2.5 : -1.25; vehicle.gun.position.set(0, casemate ? .45 : .3, vehicle.gunBase);
-    vehicle.turret.scale.set(heavy ? 1.16 : 1, heavy ? 1.1 : 1, heavy ? 1.06 : 1);
-    vehicle.gun.scale.set(heavy ? 1.65 : casemate ? 1.9 : 1, heavy ? 1.65 : casemate ? 1.9 : 1, heavy ? 1.18 : casemate ? 1.35 : 1);
+    vehicle.turret.scale.set(...look.turret); vehicle.gun.scale.set(...look.gun);
     refreshHitMeshes(vehicle);
   }
   // Only visible parts can be hit (the hidden turret or casemate must not stop shells).
@@ -165,18 +172,21 @@
     if (mode !== 'menu' || !Systems.profiles[id]) return;
     selectedVehicle = id; applyProfile(player, id); saveSettings(); refreshVehicleUi();
   }
-  function dachsLocked() { return !Career.vehicleUnlocked('dachs', careerStore.state.xp); }
+  function dachsLocked() { return vehicleLocked('dachs'); }
+  const vehicleLocked = id => !Career.vehicleUnlocked(id, careerStore.state.xp);
+  const unlockRank = id => Career.ranks.find(r => r.xp >= Career.VEHICLE_XP[id])?.name || '';
+  const pickers = [['selectLuchs', 'luchs'], ['selectKeiler', 'keiler'], ['selectWiesel', 'wiesel'], ['selectDachs', 'dachs'], ['selectBaer', 'baer']];
   function refreshStart() {
     if (loadFailed) return;
-    const locked = selectedVehicle === 'dachs' && dachsLocked();
-    start.disabled = locked; start.firstChild.textContent = locked ? 'DACHS AB RANG FRONTKÄMPFER ' : 'GEFECHT STARTEN ';
-    $('dachsHint').textContent = dachsLocked() ? 'Jagdpanzer · Gefecht ab Frontkämpfer' : 'Jagdpanzer · Fernkampf';
+    const locked = vehicleLocked(selectedVehicle);
+    start.disabled = locked; start.firstChild.textContent = locked ? `${Systems.profiles[selectedVehicle].name} AB RANG ${unlockRank(selectedVehicle).toUpperCase()} ` : 'GEFECHT STARTEN ';
+    for (const [button, id] of pickers) $(button).querySelector('span').textContent = vehicleLocked(id) ? `ab ${unlockRank(id)}` : { luchs: 'Schnell', keiler: 'Starke Front', wiesel: 'Späher', dachs: 'Jagdpanzer', baer: 'Schwer' }[id];
     if (olympia) olympiaMenue();
   }
   function refreshVehicleUi() {
     const p = player.profile;
-    for (const [button, id] of [['selectLuchs', 'luchs'], ['selectKeiler', 'keiler'], ['selectDachs', 'dachs']]) $(button).setAttribute('aria-pressed', String(p.id === id));
-    $('vehicleIndex').textContent = `0${Systems.VEHICLES.indexOf(p.id) + 1} / 03`;
+    for (const [button, id] of pickers) $(button).setAttribute('aria-pressed', String(p.id === id));
+    $('vehicleIndex').textContent = `0${pickers.findIndex(([, id]) => id === p.id) + 1} / 0${pickers.length}`;
     $('vehicleName').innerHTML = `${p.name} <span>${p.version}</span>`; $('vehicleRole').textContent = p.role;
     $('vehicleSpeed').innerHTML = `${Math.round(p.speed * 3.6)}<small>KM/H</small>`;
     $('vehicleCalibre').innerHTML = `${p.calibre}<small>MM</small>`; $('vehicleReload').innerHTML = `${p.reload}<small>SEK.</small>`;
@@ -267,7 +277,7 @@
     if (mode !== 'menu' || !Object.hasOwn(IronMaps.levels, event.target.value)) return;
     selectedMap = event.target.value; saveSettings(); reset();
   };
-  $('selectLuchs').onclick = () => selectVehicle('luchs'); $('selectKeiler').onclick = () => selectVehicle('keiler'); $('selectDachs').onclick = () => selectVehicle('dachs');
+  for (const [button, id] of pickers) $(button).onclick = () => selectVehicle(id);
   $('missionSelect').onchange = event => { if (mode !== 'menu' || !['domination', 'attack', 'defense'].includes(event.target.value)) return; mission = event.target.value; saveSettings(); refreshMapUi(); };
   $('sensitivity').oninput = event => { sensitivity = Number(event.target.value); saveSettings(); };
   $('shake').onchange = event => { shakeEnabled = event.target.checked; saveSettings(); };
@@ -514,7 +524,7 @@
     if (document.pointerLockElement) document.exitPointerLock();
   }
   start.onclick = () => {
-    if (selectedVehicle === 'dachs' && dachsLocked()) return;
+    if (vehicleLocked(selectedVehicle)) return;
     if (olympia) { if (olympiaVersuchWeg()) return olympiaMenue(); IronOnline.olymp(olympia.ticket); return; }
     gameType = 'battle'; rollLineup(); reset(); play(); notify(`${objectiveTitle()} · Blau ist dein Team`, 6); showTutorial(false);
   };
@@ -524,7 +534,7 @@
   function olympiaMenue() {
     if (!olympia) return;
     const i = olympia.info, weg = olympiaVersuchWeg();
-    for (const id of ['mapSelect', 'missionSelect', 'difficultySelect', 'selectLuchs', 'selectKeiler', 'selectDachs']) $(id).disabled = true;
+    for (const id of ['mapSelect', 'missionSelect', 'difficultySelect', ...pickers.map(([button]) => button)]) $(id).disabled = true;
     $('mapSelect').value = selectedMap; $('missionSelect').value = mission; $('difficultySelect').value = difficulty;
     const card = $('olympCard'); card.hidden = false;
     card.innerHTML = `<b>🏅 ${i.ti || 'Olympiade'} · Disziplin ${i.nr}/${i.von}</b>Online-Gefecht auf ${IronMaps.levels[selectedMap].name} gegen die anderen deiner Gruppe. Die Teams werden verteilt, leere Plätze fahren Bots. Deinen Panzer wählst du frei.`
@@ -881,7 +891,7 @@
   // Per-life tactical state: fast tanks sometimes take a wide flank before joining the fight.
   function freshTactics(bot) {
     const flanks = level.flanks[bot.team], attacking = match.mode !== 'breakthrough' || (match.attacker === bot.team && match.stage === 0);
-    return { flank: attacking && skillOf(bot).flank && bot.profile.id === 'luchs' && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
+    return { flank: attacking && skillOf(bot).flank && light(bot) && random() < .55 ? flanks[Math.floor(random() * flanks.length)] : null, threat: 0, lastSeen: null, goalKind: '', goalPoint: null, speedNow: 0 };
   }
   function canSee(from, to) {
     if (!from.alive || !to.alive || from.root.position.distanceTo(to.root.position) > 115) return false;
@@ -898,6 +908,8 @@
   // Six fixed slots: blue 0 (centre), 1, 2 · red 3, 4, 5 (centre); mirror pairs 0↔5, 1↔3, 2↔4.
   // Offline the player is slot 0 and targets[i] slot i + 1; online every human gets a slot from the room.
   const slotTeam = slot => slot < 3 ? 'blue' : 'red';
+  // Light tanks (Luchs, Wiesel) shoot on the move and like to flank.
+  const light = vehicle => vehicle.profile.speed > 13;
   const slotIndex = vehicle => [2, 0, 1, 0, 1, 2][vehicle.slot];
   const slotSpawn = slot => slot === 0 ? level.playerRespawn : level.spawns[slot - 1];
   const slotGoal = slot => slot === 0 ? [level.capture.x, level.capture.z + 5] : level.goals[slot - 1];
@@ -965,7 +977,7 @@
     while (bot.path.length && Math.hypot(bot.path[0].x - bot.root.position.x, bot.path[0].z - bot.root.position.z) < 1.8) bot.path.shift();
     // The heavy tank halts briefly to fire accurately; the light one shoots on the move. A turretless
     // tank must stop early, because it turns its whole hull towards the target before it can fire.
-    const halting = bot.profile.id !== 'luchs' && bot.enemy?.alive && bot.reload < (bot.profile.traverse ? 2.5 : .7) && bot.reaction < .4;
+    const halting = !light(bot) && bot.enemy?.alive && bot.reload < (bot.profile.traverse ? 2.5 : .7) && bot.reaction < .4;
     bot.speedNow = 0;
     if (!nearGoal && bot.path.length && !repairing && !halting) {
       const waypoint = bot.path[0], desired = Math.atan2(bot.root.position.x - waypoint.x, bot.root.position.z - waypoint.z);
@@ -1034,7 +1046,8 @@
     if (aimAt) bot.gun.rotation.x = clamp(elevationTo(bot, aimAt), -.25, .4);
     if (!repairing && bot.enemy?.alive && bot.reload <= 0 && bot.reaction <= 0 && Math.abs(shortest(desiredYaw - bot.turretYaw)) < .05 && canSee(bot, bot.enemy)) {
       bot.root.updateMatrixWorld(true); launchShell(bot, skill.error + Systems.spread(bot.profile, bot.speedNow / bot.profile.speed));
-      bot.reload = bot.profile.reload + skill.reload + random();
+      const quick = Math.min(1, bot.profile.reload / 3);
+      bot.reload = bot.profile.reload + (skill.reload + random()) * quick;
     }
   }
   function updateBattle(dt) {
@@ -1412,7 +1425,7 @@
   function leaveOnlineBattle(text) { const wasOnline = !!net; endOnline(); if (!wasOnline) return; garage(); IronOnline.show(); if (text) $('lobbyStatus').textContent = text; }
   // Online is optional: if online.js did not load, the game still works alone.
   const IronOnline = window.IronOnline || { init() { $('onlineButton').hidden = true; }, on() {}, send() {}, show() {}, hide() {}, olymp() {} };
-  IronOnline.init({ vehicle: () => selectedVehicle, allowed: id => !!olympia || id !== 'dachs' || !dachsLocked() });
+  IronOnline.init({ vehicle: () => selectedVehicle, allowed: id => !!olympia || !vehicleLocked(id) });
   IronOnline.on('start', startOnline); IronOnline.on('snap', applySnapshot); IronOnline.on('ev', applyEvent); IronOnline.on('in', hostInput); IronOnline.on('end', onlineEnd);
   IronOnline.on('closed', d => {
     if (!net) return;

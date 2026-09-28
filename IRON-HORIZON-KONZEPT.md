@@ -73,7 +73,7 @@ Die gewünschte Erfahrung: Du verstehst nach dem Gefecht, welche Entscheidung de
 | --- | --- |
 | Seiten | Der Spieler wählt Angriff oder Verteidigung; die Bots übernehmen den Rest |
 | Punkte | Erst A in der Kartenmitte, dann B zwischen A und der Verteidigerbasis (im Steinbruch neben dem Felsriegel, nicht in seinem Schatten) |
-| Tickets | Angreifer 100, Verteidiger unbegrenzt; jeder Verlust der Angreifer kostet 5 |
+| Tickets | Angreifer 110, Verteidiger unbegrenzt; jeder Verlust der Angreifer kostet 5 |
 | Zeit | Start mit 5 Minuten, jeder eroberte Punkt bringt 3 Minuten |
 | Eroberung | Mindestens doppelt so viele Angreifer wie Verteidiger im Kreis: allein 10 Sekunden, gegen Verteidiger 30 Sekunden. Sonst ruht der Fortschritt; ohne Angreifer im Kreis sinkt er langsam (20 Sekunden bis null) |
 | Vorrücken | Nach der Eroberung von A steigen die Angreifer vor Punkt B wieder ein |
@@ -122,19 +122,19 @@ Kurze Solo-Aufgaben mit festen Zielen, zum Beispiel „Konvoi abfangen“, „St
 
 ## 6. Fahrzeuge
 
-| Eigenschaft | Luchs – leichter Panzer | Keiler – mittlerer Panzer | Dachs – Jagdpanzer |
-| --- | --- | --- | --- |
-| Rolle | Flankieren, schnell zum Ziel | Stellung halten, Verbündete unterstützen | Aus der Distanz Wege sperren |
-| Höchstgeschwindigkeit | 52 km/h (rückwärts 20) | 36 km/h (rückwärts 14) | 34 km/h (rückwärts 16) |
-| Hauptwaffe | 40 mm | 75 mm | 88 mm |
-| Nachladezeit | 3 s | 5 s | 6,5 s |
-| Schadensfaktor | 1,0 | 1,45 | 1,9 |
-| Frontschutz (Faktor frontal) | 1,0 | 0,7 | 0,59 |
-| Turm | 1,15 rad/s | 0,7 rad/s | Kein Turm: Kanone schwenkt ±12° mit 0,9 rad/s; die Wanne dreht sich im Stand selbst zum Ziel |
-| Streuung | Basis | +25 % | +10 % |
-| Verfügbar | Immer | Immer | Training sofort, Gefecht ab Rang Frontkämpfer |
-| Typischer Vorteil | Kommt um einen langsamen Gegner herum | Übersteht einen ungünstigen Frontalkontakt | Zwei Seitentreffer genügen; kleines Modulziel |
-| Typischer Nachteil | Direkter Schlagabtausch ist riskant | Flankierende Gegner sind schwer abzufangen | Muss zum Zielen die ganze Wanne drehen |
+| Eigenschaft | Wiesel – Spähpanzer | Luchs – leichter Panzer | Keiler – mittlerer Panzer | Dachs – Jagdpanzer | Bär – schwerer Panzer |
+| --- | --- | --- | --- | --- | --- |
+| Rolle | Aufklären, aus der Fahrt stören | Flankieren, schnell zum Ziel | Stellung halten, Verbündete unterstützen | Aus der Distanz Wege sperren | Durchbrechen, Front halten |
+| Höchstgeschwindigkeit | 60 km/h | 52 km/h (rückwärts 20) | 36 km/h (rückwärts 14) | 34 km/h (rückwärts 16) | 28 km/h |
+| Hauptwaffe | 25-mm-Maschinenkanone | 40 mm | 75 mm | 88 mm | 105 mm |
+| Nachladezeit | 1,5 s | 3 s | 5 s | 6,5 s | 7,5 s |
+| Schadensfaktor | 0,3 | 1,0 | 1,45 | 1,9 | 2,05 |
+| Frontschutz (Faktor frontal) | 1,0 | 1,0 | 0,7 | 0,59 | 0,55 |
+| Turm | 1,5 rad/s | 1,15 rad/s | 0,7 rad/s | Kein Turm: Kanone schwenkt ±12° mit 0,9 rad/s; die Wanne dreht sich im Stand selbst zum Ziel | 0,5 rad/s |
+| Streuung | −10 % | Basis | +25 % | +10 % | +20 % |
+| Verfügbar | Training sofort, Gefecht ab Rang Fahrer | Immer | Immer | Training sofort, Gefecht ab Rang Frontkämpfer | Training sofort, Gefecht ab Rang Veteran |
+| Typischer Vorteil | Schneller als alle, feuert ohne Pause | Kommt um einen langsamen Gegner herum | Übersteht einen ungünstigen Frontalkontakt | Zwei Seitentreffer genügen; kleines Modulziel | Kaum frontal zu knacken, sehr hoher Schaden |
+| Typischer Nachteil | Hält kaum etwas aus, prallt an dicker Front ab | Direkter Schlagabtausch ist riskant | Flankierende Gegner sind schwer abzufangen | Muss zum Zielen die ganze Wanne drehen | Langsam, Turm dreht träge, Flanken sind verwundbar |
 
 Das Modell des Dachs ersetzt den Turm durch einen flachen Kasemattaufbau mit langem Rohr. Beim Dachs heißt das dritte Modul „Richtantrieb“ und sitzt nur an der Kanonenblende rund um das Rohr, etwa ein Zehntel der Front. So legt nicht jeder Treffer auf den großen Aufbau den Antrieb lahm.
 
@@ -158,7 +158,17 @@ Das Modell des Dachs ersetzt den Turm durch einen flachen Kasemattaufbau mit lan
 
 48 Gefechte je Karte schwanken um etwa ±10 Prozentpunkte. In dieser Streuung liegt auch der Unterschied zwischen Blau und Rot als Angreifer: in diesem Lauf 47 % zu 62 %, im vorigen 50 % zu 49 %. Beide Seiten stehen exakt gespiegelt; mit sechs gleichen Panzern gewannen sie im Steinbruch als Angreifer gleich oft (93 % zu 90 %).
 
-**Reine Teams** (letzter Lauf, je Paarung und Karte 32 Gefechte):
+**Ergebnis 1.2 mit fünf Panzern** (720 Gefechte, alle 10 Panzerpaare als gespiegelte Aufstellung, je Aufstellung und Karte 12 Gefechte, dazu Durchbruch):
+
+| Regel | Messung | Erfüllt |
+| --- | --- | --- |
+| 1. Seiten | Blau 56 % (im Lauf davor 50 %; Streuung bei 360 Gefechten etwa ±5 Punkte) | knapp |
+| 2. Abschüsse je Paar | 8 von 10 im Rahmen: Luchs : Keiler 51 %, Luchs : Dachs 47 %, Luchs : Wiesel 46 %, Luchs : Bär 52 %, Keiler : Wiesel 47 %, Keiler : Bär 48 %, Dachs : Wiesel 55 %, Dachs : Bär 50 %; außerhalb: Keiler : Dachs 44 % (unverändert, im Lauf davor 47 %) und Wiesel : Bär 42 % | fast |
+| 3. Durchbruch | Angreifer 49 % (Grenzposten 47 %, Steinbruch 49 %, Flusstal 50 %) | ✅ |
+
+Wiesel gegen Bär ist ein gewolltes Gegenstück: Die Maschinenkanone prallt an der dicken Front ab, das Wiesel muss an die Seite. Den Ausschlag gaben beim Abstimmen die Schuss-Zahlen: Mit Schadensfaktor 2,2 schaltete der Bär Luchs und Wiesel mit zwei frontalen Treffern aus, mit 2,05 braucht er drei. Die Frontpanzerung dagegen änderte kaum etwas.
+
+**Reine Teams** (Lauf aus 1.0 mit drei Panzern, je Paarung und Karte 32 Gefechte; mit `--pure` für alle zehn Paare messbar):
 
 | Karte | Luchs : Keiler | Luchs : Dachs | Keiler : Dachs |
 | --- | --- | --- | --- |
@@ -355,7 +365,7 @@ Keine Reparaturkosten, kein Teilnahmezwang, keine bezahlten Vorteile.
 ## 16. Mögliche Ausbaustufen 💡
 
 - **Kampagne:** fünf verbundene Einsätze mit bleibendem Fahrzeugzustand und Besatzungserfahrung.
-- **Weitere Panzertypen**, danach weitere Schlachttypen.
+- **Weitere Schlachttypen** (neue Modi).
 - **Gastgeberwechsel** im laufenden Online-Gefecht.
 - **Gamepad-Steuerung**, getrennte Touch-Empfindlichkeit, Linkshänder-Anordnung.
 - **Weitere Karten** mit Höhengelände (die Höhenfunktion ist allgemein angelegt).
@@ -368,7 +378,7 @@ Flugzeuge, Schiffe, mehrere Realismusmodi, große Forschungsbäume und zerstörb
 - **Ton:** keiner. Der Klang war nicht gut genug und wurde vollständig entfernt.
 - **Balance:** Regeln 1–3 sind erfüllt. Reine Teams bleiben ein Richtwert und zeigen den Charakter der Karten (Abschnitt 6).
 - **Gegnerstärke:** gilt nur für die Gegner; deine Verbündeten kämpfen immer wie Veteranen.
-- **Nach 1.0:** Online-Gefechte mit freier Panzerwahl und die Olympia-Disziplin als gemeinsames Gefecht (1.1), als Nächstes neue Panzertypen, später neue Schlachttypen.
+- **Nach 1.0:** Online-Gefechte mit freier Panzerwahl und die Olympia-Disziplin als gemeinsames Gefecht (1.1), dazu die Panzer Wiesel und Bär (1.2), später neue Schlachttypen.
 - **Offen – Name:** „Iron Horizon“ bleibt, oder ein deutscher Name wie bei den anderen Spielen der Sammlung (zum Beispiel „Stahlhorizont“)?
 
 ## 18. Spielekarte für die Sammlung

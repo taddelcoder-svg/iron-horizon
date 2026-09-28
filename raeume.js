@@ -7,7 +7,7 @@
 // Karte und Bots stehen im Ticket; sind alle Erwarteten da, startet das Gefecht nach kurzem Countdown.
 // Jeder Spieler meldet am Ende seine eigenen Werte über /api/olymp (server.js), es gibt genau ein Gefecht.
 
-const FAHRZEUGE = ['luchs', 'keiler', 'dachs'];
+const FAHRZEUGE = ['luchs', 'keiler', 'dachs', 'wiesel', 'baer'];
 const KARTEN = ['border', 'quarry', 'valley'];
 const MODI = ['domination', 'attack', 'defense'];
 const STUFEN = ['recruit', 'veteran', 'ace'];

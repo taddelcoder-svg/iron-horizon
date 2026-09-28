@@ -5,6 +5,10 @@
     luchs: Object.freeze({ id: 'luchs', name: 'LUCHS', version: 'MK. I', role: 'LEICHTER PANZER · AUFKLÄRUNG', speed: 52 / 3.6, reverse: 5.5, acceleration: 5.3, turn: .82, turret: 1.15, reload: 3, calibre: 40, power: 1, front: 1, scale: 1, spread: 1, note: 'Leicht auf den Ketten. Schnell an der Flanke.' }),
     keiler: Object.freeze({ id: 'keiler', name: 'KEILER', version: 'MK. II', role: 'MITTLERER PANZER · FEUERUNTERSTÜTZUNG', speed: 36 / 3.6, reverse: 4, acceleration: 3.4, turn: .6, turret: .7, reload: 5, calibre: 75, power: 1.45, front: .7, scale: 1.12, spread: 1.25, note: 'Starke Front. Schweres Geschütz. Sichere deine Flanken.' }),
     // Turretless tank destroyer: the gun only traverses ±12° (traverse, rad) inside the hull.
+    // Scout tank: very fast, a quick-firing autocannon with little punch, thin armour.
+    wiesel: Object.freeze({ id: 'wiesel', name: 'WIESEL', version: 'MK. IV', role: 'SPÄHPANZER · MASCHINENKANONE', speed: 60 / 3.6, reverse: 7, acceleration: 6.4, turn: .95, turret: 1.5, reload: 1.5, calibre: 25, power: .3, front: 1, scale: .88, spread: .9, note: 'Schnellfeuer aus der Bewegung. Hält kaum etwas aus – nutze Tempo und Deckung.' }),
+    // Heavy tank: slow, a thick front plate and a big gun, but the turret turns slowly.
+    baer: Object.freeze({ id: 'baer', name: 'BÄR', version: 'MK. V', role: 'SCHWERER PANZER · DURCHBRUCH', speed: 28 / 3.6, reverse: 3.5, acceleration: 2.6, turn: .45, turret: .5, reload: 7.5, calibre: 105, power: 2.05, front: .55, scale: 1.22, spread: 1.2, note: 'Dicke Front, schweres Geschütz. Der Turm dreht langsam – lass dich nicht umfahren.' }),
     dachs: Object.freeze({ id: 'dachs', name: 'DACHS', version: 'MK. III', role: 'JAGDPANZER · FERNKAMPF', speed: 34 / 3.6, reverse: 16 / 3.6, acceleration: 3.9, turn: .72, turret: .9, traverse: 12 * Math.PI / 180, reload: 6.5, calibre: 88, power: 1.9, front: .59, scale: 1.08, spread: 1.1, note: 'Kein Turm: Die Kanone schwenkt nur ±12°. Die Wanne dreht sich zum Ziel, wenn du stillstehst.' })
   });
   const VEHICLES = Object.freeze(Object.keys(profiles));

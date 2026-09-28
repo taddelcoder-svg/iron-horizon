@@ -79,7 +79,7 @@ test('Durchbruch: outnumbering defenders captures, only more slowly', () => {
 });
 test('Durchbruch: defenders win on time or when the attackers run out of tickets', () => {
   const timed = new Breakthrough('red'); advance(timed, 301, 0, 0); assert.equal(timed.result, 'blue');
-  const broke = new Breakthrough('blue'), losses = Breakthrough.TICKETS / 5; assert.equal(broke.tickets.blue, 100);
+  const broke = new Breakthrough('blue'), losses = Breakthrough.TICKETS / 5; assert.equal(broke.tickets.blue, 110);
   for (let i = 1; i < losses; i++) broke.lose('blue'); assert.equal(broke.result, null); broke.lose('blue'); assert.equal(broke.result, 'red');
   const defenders = new Breakthrough('blue'); defenders.lose('red', 500); assert.equal(defenders.result, null); assert.equal(defenders.tickets.red, Infinity);
 });
