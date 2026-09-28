@@ -1,14 +1,17 @@
 {
   "name": "iron-horizon",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Iron Horizon – 3D-Panzergefecht im Browser gegen Bots",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test iron-horizon/battle.test.cjs iron-horizon/systems.test.cjs iron-horizon/career.test.cjs iron-horizon/maps.test.cjs"
+    "test": "node --test iron-horizon/battle.test.cjs iron-horizon/systems.test.cjs iron-horizon/career.test.cjs iron-horizon/maps.test.cjs iron-horizon/raeume.test.cjs"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }

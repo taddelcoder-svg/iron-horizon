@@ -1,11 +1,14 @@
 'use strict';
 // Iron Horizon – Server: liefert nur die Spieldateien aus, hinter dem gemeinsamen Passwort (zugang.js).
-// Das Gefecht selbst läuft komplett im Browser; der Server speichert keine Spieldaten.
+// Das Gefecht selbst läuft im Browser; für Online-Gefechte verbindet der Server die Spieler eines Raums
+// (raeume.js, WebSocket unter /ws) und speichert keine Spieldaten.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zugang = require('./zugang')({ titel: 'Iron Horizon' });
 const olymp = require('./olymp')({ spiel: 'ironhorizon' });
+const { WebSocketServer } = require('ws');
+const raeume = require('./raeume').raeume({ olymp });
 
 const PORT = Number(process.env.PORT) || 10400;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -82,5 +85,16 @@ const server = http.createServer((req, res) => {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Nicht gefunden');
 });
+
+// Online-Räume: nur mit Zugang (Passwort-Cookie). Lagebilder sind klein, Eingaben noch kleiner.
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024, verifyClient: ({ req }) => zugang.hatZugang(req) });
+wss.on('connection', ws => {
+  const verbindung = raeume.verbinden({ send: text => { if (ws.readyState === 1) ws.send(text); } });
+  ws.isAlive = true; ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('message', daten => verbindung.nachricht(String(daten)));
+  ws.on('close', verbindung.getrennt);
+});
+// Tote Verbindungen (Handy im Standby) nach spätestens einer Minute aufräumen
+setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) ws.terminate(); else { ws.isAlive = false; ws.ping(); } } }, 30_000).unref();
 
 server.listen(PORT, HOST, () => console.log(`Iron Horizon läuft auf http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/iron-horizon/`));

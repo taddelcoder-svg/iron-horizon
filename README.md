@@ -1,8 +1,9 @@
 # Iron Horizon
 
-3D-Panzerkampfspiel im Browser, **Version 1.0**:
+3D-Panzerkampfspiel im Browser, **Version 1.1**:
 
 - **Inhalt:** drei Karten (eine davon mit Hügeln und Flussbett), drei Panzer, die Modi Vorherrschaft und Durchbruch, drei Gegnerstärken, Training und ein Fahrerprofil mit Rängen, Tarnungen und Auszeichnungen.
+- **Online:** Räume mit Code für bis zu 6 Spieler, freie Team- und Panzerwahl, leere Plätze füllen Bots.
 - **Steuerung:** Maus und Tastatur oder Touch auf Handy und Tablet.
 - **Technik:** Alle Laufzeitdateien sind enthalten; keine CDNs, keine Konten, keine Paketinstallation.
 
@@ -44,7 +45,7 @@ Regeln, Zahlen und Tests: [Spiel-Dokumentation](iron-horizon/README.md). Gestalt
 
 Das Repository enthält ein `Dockerfile` und ein Render-Blueprint (`render.yaml`, Dienstname `iron-horizon`). Auf Render entweder das Blueprint verbinden oder einen **Web Service** vom Typ Docker anlegen und die Umgebungsvariable `ZUGANG_PASSWORT` setzen. Ohne Passwort bleibt die Seite auf Render gesperrt. `/datenschutz` und `/healthz` sind ohne Passwort erreichbar.
 
-Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, keine Serverdateien) und speichert nichts.
+Der Server liefert nur die Spieldateien, Schrift und Three.js aus (keine Tests, keine Serverdateien) und speichert nichts. Für Online-Gefechte verbindet er die Spieler eines Raums über WebSocket (`/ws`, Paket `ws`); Räume leben nur im Arbeitsspeicher.
 
 ## Tests
 

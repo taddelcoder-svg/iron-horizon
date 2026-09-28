@@ -1,4 +1,4 @@
-# Iron Horizon – Version 1.0
+# Iron Horizon – Version 1.1
 
 3D-Panzergefecht für die Swimming-Lions-Spielesammlung. Alle Laufzeitdateien einschließlich Three.js liegen im Repository; keine CDNs, Konten oder externen Dienste. Das Spiel hat bewusst keinen Ton.
 
@@ -29,6 +29,14 @@ Danach `http://localhost:10400/` öffnen. Für die Browser-Tests startet `node i
   - Veteran: Reaktion 0,8–1,3 s, 11 mrad Zielfehler, Nachladen +1–2 s. Luchse flankieren, wenn der Gegner den Punkt hält.
   - Ass: Reaktion 0,55–0,85 s, 7 mrad Zielfehler, Nachladen +0,8–1,8 s. Zielt tief auf Ketten und Seiten und gibt 25 % mehr Erfahrung.
 - **Bot-Aufstellung:** Zu Beginn jedes Gefechts wird für die beiden Bot-Paare je ein Panzer ausgelost; blauer Bot 1 ↔ roter Bot 1 und blauer Bot 2 ↔ roter Bot 2 fahren dasselbe. Roter Bot 3 fährt immer deinen Panzer.
+
+### Online-Gefechte
+
+- „Online spielen“ in der Garage öffnet die Lobby: Raum erstellen oder mit vierstelligem Code beitreten. Der Einladungslink `…/iron-horizon/?raum=CODE` tritt direkt bei.
+- Bis zu 6 Spieler, frei auf Blau und Rot verteilt; jeder wählt seinen Panzer selbst, auch doppelt. Leere Plätze füllen Bots, die den Panzer ihres Gegenübers fahren.
+- Der Gastgeber wählt Karte, Modus und Bot-Stärke und startet. Sein Browser rechnet das Gefecht; jeder steuert den eigenen Panzer selbst. Der Gastgeber sollte seinen Tab im Vordergrund lassen.
+- Verlässt ein Mitspieler das Gefecht, übernimmt ein Bot; verlässt der Gastgeber es, endet es für alle.
+- Olympiade: Mit dem Olympia-Ticket landet die ganze Gruppe automatisch in einem Raum (Karte, Modus und Bots aus der Olympiade). Sind alle da, startet das Gefecht von selbst; am Ende meldet jeder seine Punkte.
 
 ### Vorherrschaft
 
@@ -119,6 +127,8 @@ Der Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-Speicher;
 - `systems.js`: Fahrzeugprofile, Module, Reparatur, Abpraller, Schaden, Streuung und Rauch-Sichtprüfung.
 - `maps.js`: Kartendaten (Starts, Ziele, Überwachungsstellungen, Flanken, Punkt B, Hindernisse) und die Höhenfunktion des Flusstals.
 - `terrain.js`: statische 3D-Geometrie; Reliefnetz mit Farbverlauf, Bach und Brücke für das Flusstal. Ein Kartenwechsel gibt die alte Geometrie frei.
+- `online.js`: Lobby, WebSocket-Verbindung und Einladungslink; das Gefecht selbst steuert `game.js` (Gastgeber sendet Lagebilder und Ereignisse, Mitspieler ihre Eingaben).
+- `../raeume.js`: Räume auf dem Server (Code, Teams, Panzer, Plätze, Weiterleitung).
 - `career.js`: Erfahrung, Ränge, Tarnungen, Auszeichnungen, Fahrzeugfreischaltung, Spielstandprüfung und Speicherung.
 - `vendor/three.min.js`: Three.js r128 mit MIT-Lizenz in `vendor/LICENSE-three.txt`.
 - `serve.cjs`: startet `../server.js` für die Browser-Tests auf `127.0.0.1:4177`.
@@ -130,6 +140,7 @@ Der Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-Speicher;
 - `battle.test.cjs`: Eroberung, Durchbruch, Wegsuche, Taktik, Schwierigkeit, Schlüsselmoment.
 - `systems.test.cjs`: Fahrzeuge einschließlich Dachs, Module, Reparatur, Abpraller, Schaden, Streuung, Rauch.
 - `maps.test.cjs`: freie und erreichbare Positionen, Punkt B, Hangneigung, gespiegelte Positionen aller Karten, Drehsymmetrie des Steinbruchs, Spiegelsymmetrie des Flusstals und des Wegrasters.
+- `raeume.test.cjs`: Raum erstellen und beitreten, volle Teams, nur der Gastgeber startet, Platzvergabe mit Spiegelpaaren, Weiterleitung im Gefecht, Verlassen.
 - `career.test.cjs`: Erfahrung, Auszeichnungen, Tarnungen, Dachs-Freischaltung, alte Spielstände, Speicherfehler.
 
 Die Browser-Tests brauchen Playwright, installiertes Chrome und den laufenden Server von `serve.cjs`:
@@ -141,6 +152,8 @@ Die Browser-Tests brauchen Playwright, installiertes Chrome und den laufenden Se
 - `maps-browser-test.cjs`: Kartenwahl, Freigabe der Geometrie, Laptop-Layout, Training, Bot-Wege.
 - `career-browser-test.cjs`: Erfahrung, Speicherung, Tarnungen, Export und Import.
 - `touch-browser-test.cjs`: Handy im Querformat, Joystick, Wischen, Knöpfe, Hochformat-Hinweis.
+- `olymp-browser-test.cjs`: zwei Spieler mit selbst signierten Olympia-Tickets treffen sich, Start bei Vollzähligkeit, Teams geteilt, Abbruch durch den Gastgeber meldet trotzdem (lokaler Server ohne Passwort).
+- `online-browser-test.cjs`: zwei Browser über den Einladungslink, freie Team- und Panzerwahl, Start, Bewegung und Schüsse des Gasts beim Gastgeber, Bots und Tickets beim Gast, Gastgeber verlässt das Gefecht (Adresse über `IH_URL`).
 - `modes-browser-test.cjs`: Dachs-Sperre und Richtbereich, Relief im Flusstal, Gegnerstärke nur für Gegner, automatische Grafikstufe, Durchbruch vom Start bis zum Ergebnis, Auszeichnungen und Tarnungen im Profil.
 
 `balance-tournament.cjs [--rounds 12] [--level veteran] [--workers 4]` spielt alle Aufstellungen auf allen Karten und im Durchbruch durch und prüft die Balance-Regeln aus dem Konzept. Mit `--beginner` schätzt es stattdessen, wie oft ein Team mit einem Einsteiger gewinnt (Spielerpanzer auf Stufe Rekrut, Verbündete Veteran, Gegner auf jeder Stufe).

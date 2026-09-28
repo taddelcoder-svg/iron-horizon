@@ -108,3 +108,17 @@
 .olymp-card small{display:block;font:9px monospace;letter-spacing:1px;color:#acb9a2;margin-top:6px}
 .olymp-result{border-top:1px solid #ffffff25;padding-top:14px;margin-top:4px}
 .olymp-result strong{font-size:25px;color:var(--orange)}
+
+/* Online lobby */
+.menu-links{display:flex;gap:18px;max-width:370px}.menu-links .training-link{flex:1;text-align:left}.online-link{color:var(--orange)!important;font-weight:700!important}
+.lobby-panel{width:560px;max-width:94vw}.lobby-field{flex-direction:column;align-items:stretch!important;font:9px monospace!important;letter-spacing:1.5px;margin:14px 0!important}
+.lobby-panel input:not([type]),.lobby-panel #roomCode{padding:11px 12px;border:1px solid #ffffff40;background:#1b2a21;color:#f1e4c8;font:14px Bricolage,Arial,sans-serif}
+.join-row{display:flex;gap:10px;margin-top:12px}.join-row input{flex:1;text-transform:uppercase;letter-spacing:4px}.join-row .outline{width:auto;margin:0}
+.room-code{display:flex;align-items:center;gap:14px;margin:6px 0 16px}.room-code span{font:9px monospace;letter-spacing:2px;color:#b9bfb0}.room-code b{font:30px monospace;letter-spacing:6px;color:var(--orange)}.room-code .outline{width:auto;margin:0 0 0 auto;font-size:9px}
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:14px}.teams h3{font:10px monospace;letter-spacing:2px;margin:0 0 8px}.teams h3.blue{color:#94c6db}.teams h3.red{color:#f2a084}
+.teams ul{list-style:none;margin:0;padding:0}.teams li{padding:8px 10px;border:1px solid #ffffff25;margin-bottom:6px;font-size:12px}.teams li.me{border-color:var(--orange)}.teams li.bot{opacity:.45;font:10px monospace}
+.teams .outline{margin-top:4px!important;padding:8px}.lobby-vehicles{margin:16px 0 8px}.lobby-settings{gap:10px}.lobby-settings .map-picker{flex:1;margin:0}
+.lobby-hint{font-size:11px!important}.lobby-status{min-height:18px;color:#e2be8c!important;font-size:12px!important}.lobby-status.bad{color:#ffb787!important}
+.vehicle-label.human{border-color:#efe0bd}
+@media(max-height:560px){.lobby-panel{padding:18px}.lobby-panel h2{display:none}}
+.lobby-olymp{margin:4px 0 14px}.lobby-olymp ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0;padding:0}.lobby-olymp li{padding:6px 10px;border:1px solid #ffffff25;font-size:12px;opacity:.6}.lobby-olymp li.here{opacity:1;border-color:#a1c390}

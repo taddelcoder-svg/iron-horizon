@@ -14,6 +14,7 @@
   const withCareerLock = action => navigator.locks?.request ? navigator.locks.request('iron-horizon-career', action) : Promise.resolve().then(action);
   let selectedVehicle = 'luchs', selectedMap = 'border', level = IronMaps.levels.border, terrain = null;
   let olympia = null;   // Olympia-Challenge, siehe unten
+  let net = null;       // Online-Gefecht, siehe online.js und unten
   let renderer;
   try { renderer = new T.WebGLRenderer({ canvas: $('world'), antialias: true, powerPreference: 'high-performance' }); }
   catch (_) { fail('Dein Browser konnte WebGL nicht starten. Bitte öffne das Spiel in einem Browser mit aktivierter Hardwarebeschleunigung.'); return; }
@@ -95,13 +96,14 @@
     // Painted recognition stripes on the hull.
     box(.08, .35, .8, '#dbc990', root, 1.565, 1.2, -.6);
     box(.08, .35, .8, '#dbc990', root, -1.565, 1.2, -.6);
-    scene.add(root); return { root, turret, gun, wheels, turretBody, casemate, gunBase: -1.25 };
+    const hullMeshes = []; root.traverse(object => { if (object.isMesh && object.material === mat(color)) { object.material = object.material.clone(); hullMeshes.push(object); } });
+    scene.add(root); return { root, turret, gun, wheels, turretBody, casemate, gunBase: -1.25, hullMeshes };
   }
   const tank = makeTank('#737c50');
-  const player = { ...tank, id: 'player', team: 'blue', callsign: 'DU', hp: 100, alive: true, respawn: 0, shield: 3, hitMeshes: [], yaw: 0, profile: Systems.profiles.luchs, systems: Systems.fresh(), lastHit: null };
+  const player = { ...tank, id: 'player', slot: 0, team: 'blue', callsign: 'DU', hp: 100, alive: true, respawn: 0, shield: 3, hitMeshes: [], yaw: 0, profile: Systems.profiles.luchs, systems: Systems.fresh(), lastHit: null };
   tank.root.traverse(object => { if (object.isMesh) { object.userData.vehicle = player; player.hitMeshes.push(object); } });
   const paintMeshes = [];
-  tank.root.traverse(object => { if (object.isMesh && object.material === mat('#737c50')) { object.material = object.material.clone(); paintMeshes.push(object); } });
+  paintMeshes.push(...tank.hullMeshes);
   const paintTextures = new Map();
   function applyPaint() {
     const paint = Career.paints.find(p => p.id === careerStore.state.paints[player.profile.id]) || Career.paints[0];
@@ -134,7 +136,7 @@
     box(.1, 5, .1, '#d6c6a0', flagGroup, 3.5, 2.5, 0);
     box(1.6, .9, .08, '#c5814b', flagGroup, 4.25, 4.45, 0);
     const team = i < 2 ? 'blue' : 'red', number = team === 'blue' ? i + 1 : i - 1;
-    const bot = { ...enemy, id: i, team, number, callsign: `${team === 'blue' ? 'VERBÜNDETER' : 'GEGNER'} ${number}`, holdIndex: number - 1, hitMeshes, ring, flagGroup, x, z, hits: 0, hp: 100, alive: true, respawn: 0, shield: 0, yaw: 0, turretYaw: 0, reload: 0, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, visibleToPlayer: false };
+    const bot = { ...enemy, id: i, slot: i + 1, team, number, callsign: `${team === 'blue' ? 'VERBÜNDETER' : 'GEGNER'} ${number}`, holdIndex: number - 1, hitMeshes, ring, flagGroup, x, z, hits: 0, hp: 100, alive: true, respawn: 0, shield: 0, yaw: 0, turretYaw: 0, reload: 0, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, visibleToPlayer: false };
     hitMeshes.forEach(mesh => { mesh.userData.vehicle = bot; });
     const label = document.createElement('div'); label.className = 'vehicle-label' + (bot.team === 'blue' ? ' friendly' : ''); label.hidden = true; $('labels').appendChild(label); bot.label = label;
     targets.push(bot);
@@ -218,7 +220,9 @@
   const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a', '#fff0b3'].map(color => new T.MeshBasicMaterial({ color }));
   const events = [], killLog = []; let previousOwner = null, autopilot = false;
   try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; if (['domination', 'attack', 'defense'].includes(saved.mission)) mission = saved.mission; } catch (_) { /* Storage may be disabled. */ }
-  // Olympiade: Mit ?olymp=… im Link gibt es die Gefechts-Challenge – für alle dieselbe Karte, derselbe Panzer,
+  // Olympiade: Mit ?olymp=… im Link kämpft die ganze Olympia-Gruppe in einem gemeinsamen Online-Gefecht
+  // (Raum je Gruppe, siehe raeume.js); jeder wählt seinen Panzer frei. Ein Versuch; die Punkte rechnet der Server.
+  // Frühere Fassung: für alle dieselbe Karte, derselbe Panzer,
   // dieselben Gegner (fester Startwert aus dem Lauf). Ein Versuch; die Punkte rechnet der Server.
   olympia = (() => {
     let ticket = new URLSearchParams(location.search).get('olymp');
@@ -322,7 +326,7 @@
   });
   window.addEventListener('storage', event => { if (event.key === Career.KEY && !careerStore.protected) { careerStore.read(); refreshCareer(); refreshStart(); if (mode === 'menu') applyPaint(); } });
   async function recordRound() {
-    const id = roundId, result = match.result, finalStats = { ...stats }, difficultyId = matchDifficulty.id, mapId = level.id;
+    const id = roundId, result = ownResult(), finalStats = { ...stats }, difficultyId = matchDifficulty.id, mapId = level.id;
     $('earnedXp').textContent = 'Erfahrung wird gezählt …'; $('xpBreakdown').textContent = $('unlockNotice').textContent = $('saveStatus').textContent = '';
     try {
       const previousRank = Career.rank(careerStore.state.xp).current.name;
@@ -369,7 +373,15 @@
     smokeClouds.length = 0;
   }
   function deploySmoke(vehicle = player) {
+    if (net && !net.host && vehicle === player) {
+      if (player.systems.smokeCharges <= 0 || player.systems.smokeCooldown > 0) { notify(player.systems.smokeCharges === 0 ? 'KEINE RAUCHLADUNG MEHR' : 'RAUCH WIRD BEREITGEMACHT', 2); return false; }
+      IronOnline.send({ t: 'in', k: 'smoke' }); return true;
+    }
     if (!Systems.useSmoke(vehicle.systems)) { if (vehicle === player) notify(player.systems.smokeCharges === 0 ? 'KEINE RAUCHLADUNG MEHR' : 'RAUCH WIRD BEREITGEMACHT', 2); return false; }
+    emit({ k: 'smoke', s: vehicle.slot });
+    return smokeCloud(vehicle);
+  }
+  function smokeCloud(vehicle) {
     const group = new T.Group(); group.position.copy(vehicle.root.position); scene.add(group);
     const cloud = { x: group.position.x, y: 2.5, z: group.position.z, radius: 7, life: 10, group, owner: vehicle };
     for (let i = 0; i < 26; i++) {
@@ -390,28 +402,46 @@
       if (cloud.life <= 0) { scene.remove(cloud.group); cloud.group.children.forEach(sprite => sprite.material.dispose()); smokeClouds.splice(i, 1); }
     }
   }
+  const teamColors = { blue: '#637d76', red: '#8e6850' };
+  // Who sits in which slot, which team and colour each tank has, and what the labels say.
+  function assignSlots() {
+    const others = [0, 1, 2, 3, 4, 5].filter(slot => slot !== (net ? net.slot : 0));
+    player.slot = net ? net.slot : 0; player.team = slotTeam(player.slot);
+    const numbers = { blue: 0, red: 0 };
+    targets.forEach((target, i) => {
+      target.slot = others[i]; target.team = gameType === 'training' ? (i < 2 ? 'blue' : 'red') : slotTeam(target.slot);
+      const seat = net?.seats[target.slot];
+      target.remote = seat?.human ?? null;
+      target.number = ++numbers[target.team];
+      target.callsign = seat?.name ? seat.name.toUpperCase() : `${target.team === player.team ? 'VERBÜNDETER' : 'GEGNER'} ${target.number}`;
+      target.label.className = 'vehicle-label' + (target.team === player.team ? ' friendly' : '') + (target.remote ? ' human' : '');
+      for (const mesh of target.hullMeshes) mesh.material.color.set(teamColors[target.team]).convertSRGBToLinear();
+    });
+  }
   function reset() {
     loadMap(selectedMap); refreshMapUi();
     roundId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    const [startX, startZ] = gameType === 'training' ? level.trainingStart : level.playerStart; tank.root.position.set(startX, 0, startZ); hullYaw = turretYaw = viewYaw = 0; pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
+    assignSlots();
+    const [startX, startZ] = gameType === 'training' ? level.trainingStart : slotSpawn(player.slot); tank.root.position.set(startX, 0, startZ); hullYaw = turretYaw = viewYaw = gameType === 'training' ? 0 : teamYaw(player.team); pitch = -.16; velocity = reload = recoil = hitCount = 0; zoom = false; keys.clear();
     matchMission = gameType === 'battle' ? mission : 'domination';
     match = matchMission === 'domination' ? new IronBattle.Match() : new IronBattle.Breakthrough(matchMission === 'attack' ? 'blue' : 'red');
     btPoints = match.mode === 'breakthrough' ? [level.capture, level.breakthrough[match.defender]] : [];
     stats = freshStats(); damageTime = 0; guards.blue = guards.red = null; events.length = killLog.length = 0; previousOwner = null; previousStage = 0;
     matchDifficulty = IronBattle.difficulties[difficulty];
-    teamSkill = { blue: IronBattle.difficulties[skillOverride?.blue || (autopilot ? difficulty : 'veteran')], red: IronBattle.difficulties[skillOverride?.red || difficulty] };
+    teamSkill = { blue: IronBattle.difficulties[skillOverride?.blue || (autopilot || net ? difficulty : 'veteran')], red: IronBattle.difficulties[skillOverride?.red || difficulty] };
     playerSkill = skillOverride?.player ? IronBattle.difficulties[skillOverride.player] : null;
     // Bots: mirrored pairs share a vehicle (blue 1 ↔ red 1, blue 2 ↔ red 2); red 3 mirrors the player.
-    if (!autopilot) {
+    if (net) targets.forEach(target => applyProfile(target, net.seats[target.slot].vehicle));
+    else if (!autopilot) {
       const [first, second] = gameType === 'battle' && lineup ? lineup : ['luchs', 'keiler'];
       [first, second, first, second, gameType === 'battle' ? selectedVehicle : 'luchs'].forEach((id, i) => applyProfile(targets[i], id));
     }
-    Object.assign(player, { hp: 100, alive: true, respawn: 0, shield: 3, yaw: 0, systems: Systems.fresh(), lastHit: null }); tank.root.visible = true; steerInput = 0;
+    Object.assign(player, { hp: 100, alive: true, respawn: 0, shield: 3, yaw: hullYaw, life: 0, systems: Systems.fresh(), lastHit: null }); tank.root.visible = true; steerInput = 0;
     applyProfile(player, selectedVehicle); refreshVehicleUi(); clearSmoke();
     for (const target of targets) {
       [target.x, target.z] = level.training[target.id]; target.ring.position.set(target.x, ground(target.x, target.z) + .09, target.z); target.flagGroup.position.set(target.x, ground(target.x, target.z), target.z);
       target.hits = 0; target.systems = Systems.fresh(); target.ring.material.color.set('#eab577'); target.flagGroup.visible = gameType === 'training'; target.label.hidden = true;
-      Object.assign(target, { hp: 100, alive: true, respawn: 0, shield: 3, reload: 1 + random(), path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, visibleToPlayer: false }, freshTactics(target));
+      Object.assign(target, { hp: 100, alive: true, respawn: 0, shield: 3, life: 0, netState: null, reload: 1 + random(), path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, visibleToPlayer: false }, freshTactics(target));
       target.root.visible = true; target.ring.visible = gameType === 'training';
       if (gameType === 'training') { target.root.position.set(target.x, 0, target.z); target.yaw = .3 + target.id * 1.1; }
       else { target.root.position.set(...spawnCoordinates(target)); target.yaw = target.team === 'blue' ? 0 : Math.PI; }
@@ -433,7 +463,7 @@
   function objectiveTitle() {
     if (match.mode !== 'breakthrough') return 'Erobere Punkt A';
     const letter = 'AB'[Math.min(match.stage, 1)];
-    return match.attacker === 'blue' ? `Erobere Punkt ${letter}` : `Halte Punkt ${letter}`;
+    return match.attacker === player.team ? `Erobere Punkt ${letter}` : `Halte Punkt ${letter}`;
   }
   let previousStage = 0, lineup = null;
   // A new random pairing for each battle; the garage keeps a fixed line-up.
@@ -485,11 +515,7 @@
   }
   start.onclick = () => {
     if (selectedVehicle === 'dachs' && dachsLocked()) return;
-    if (olympia) {
-      if (olympiaVersuchWeg()) return olympiaMenue();
-      try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {}
-      seed = olympia.startwert; olympiaMenue();
-    }
+    if (olympia) { if (olympiaVersuchWeg()) return olympiaMenue(); IronOnline.olymp(olympia.ticket); return; }
     gameType = 'battle'; rollLineup(); reset(); play(); notify(`${objectiveTitle()} · Blau ist dein Team`, 6); showTutorial(false);
   };
   function olympiaVersuchWeg() { try { return localStorage.getItem(olympia.versuchKey) === '1'; } catch (_) { return false; } }
@@ -501,14 +527,16 @@
     for (const id of ['mapSelect', 'missionSelect', 'difficultySelect', 'selectLuchs', 'selectKeiler', 'selectDachs']) $(id).disabled = true;
     $('mapSelect').value = selectedMap; $('missionSelect').value = mission; $('difficultySelect').value = difficulty;
     const card = $('olympCard'); card.hidden = false;
-    card.innerHTML = `<b>🏅 ${i.ti || 'Olympiade'} · Disziplin ${i.nr}/${i.von}</b>Gefechts-Challenge: ${IronMaps.levels[selectedMap].name}, ${Systems.profiles[selectedVehicle].name}, Gegner Veteran. Alle fahren dieselbe Schlacht.`
-      + `<small>SIEG 1000 · ABSCHUSS 300 · TREFFER 50 · SEKUNDE AM PUNKT 5 · EIGENER VERLUST −150 · EIN VERSUCH</small>`;
+    card.innerHTML = `<b>🏅 ${i.ti || 'Olympiade'} · Disziplin ${i.nr}/${i.von}</b>Online-Gefecht auf ${IronMaps.levels[selectedMap].name} gegen die anderen deiner Gruppe. Die Teams werden verteilt, leere Plätze fahren Bots. Deinen Panzer wählst du frei.`
+      + `<small>SIEG 1000 · ABSCHUSS 300 · TREFFER 50 · SEKUNDE AM PUNKT 5 · EIGENER VERLUST −150 · EIN GEFECHT</small>`;
+    start.disabled = false; start.firstChild.textContent = 'ZUR OLYMPIA-SCHLACHT ';
     if (weg) {
       start.disabled = false; start.firstChild.textContent = 'ZURÜCK ZUR OLYMPIADE ';
       start.onclick = zurOlympiade;
       card.innerHTML += '<small>DEIN VERSUCH IST SCHON GESPIELT.</small>';
     }
   }
+  if (olympia && !olympiaVersuchWeg()) setTimeout(() => IronOnline.olymp(olympia.ticket), 0);
   if (olympia) fetch('/api/olymp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: olympia.ticket, art: 'da' }) })
     .then(r => r.json()).then(d => { if (d.schonGespielt) { try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {} olympiaMenue(); } }).catch(() => {});
   $('trainingButton').onclick = () => { gameType = 'training'; reset(); play(); notify(touchMode ? 'Links fahren · rechts wischen zum Zielen · FEUER' : 'WASD fahren · Maus zielen · Linksklick feuern', 6); showTutorial(false); };
@@ -516,14 +544,15 @@
   $('resumeButton').onclick = () => play();
   $('retryMouseButton').onclick = () => play(true);
   $('resetButton').onclick = () => { if (gameType === 'battle') rollLineup(); reset(); play(); notify(gameType === 'battle' ? `Neues Gefecht · ${objectiveTitle()}` : 'Neue Übung · 5 Ziele warten auf dich'); };
-  $('rematchButton').onclick = () => { rollLineup(); reset(); play(); };
+  $('rematchButton').onclick = () => { if (net) { leaveOnlineBattle(''); return; } rollLineup(); reset(); play(); };
   function garage() {
     mode = 'menu'; clearTimeout(lockTimer); lockAttempt++; keys.clear(); releaseTouch(); edgeX = edgeY = 0; tutorialTime = 0; $('tutorial').hidden = true; lineup = null;
     if (document.pointerLockElement) document.exitPointerLock();
     reset(); $('result').hidden = $('hud').hidden = $('pause').hidden = $('pauseButton').hidden = true; $('menu').hidden = false;
     document.body.classList.remove('playing', 'pointer-locked', 'aim-active'); targets.forEach(t => { t.label.hidden = true; });
   }
-  $('menuButton').onclick = $('garageButton').onclick = garage;
+  $('menuButton').onclick = () => { if (net) { endOnline(); } garage(); };
+  $('garageButton').onclick = () => { if (net) { IronOnline.send({ t: 'leave' }); endOnline(); } garage(); };
   // In der Olympiade kein Neustart und kein Abbruch mitten im Gefecht
   if (olympia) { $('resetButton').hidden = true; $('garageButton').hidden = true; }
   $('pauseButton').onclick = pause;
@@ -585,7 +614,7 @@
   function showTutorial(force) {
     if (!force && introSeen) return;
     $('tutorialGoal').textContent = gameType !== 'battle' ? 'Triff die fünf Übungsziele. Hier schießt niemand zurück.'
-      : match.mode === 'breakthrough' ? match.attacker === 'blue' ? 'Durchbruch: Erobere Punkt A, dann Punkt B. Ohne Verteidiger im Kreis dauert es 10 Sekunden, gegen Verteidiger 30 – dafür müsst ihr doppelt so viele sein. Jeder Punkt bringt 3 Minuten.' : `Durchbruch: Halte die Angreifer auf. Solange ihr im Kreis nicht in doppelter Unterzahl seid, stoppt ihre Eroberung. Sie haben ${IronBattle.Breakthrough.TICKETS} Tickets und nur begrenzt Zeit.`
+      : match.mode === 'breakthrough' ? match.attacker === player.team ? 'Durchbruch: Erobere Punkt A, dann Punkt B. Ohne Verteidiger im Kreis dauert es 10 Sekunden, gegen Verteidiger 30 – dafür müsst ihr doppelt so viele sein. Jeder Punkt bringt 3 Minuten.' : `Durchbruch: Halte die Angreifer auf. Solange ihr im Kreis nicht in doppelter Unterzahl seid, stoppt ihre Eroberung. Sie haben ${IronBattle.Breakthrough.TICKETS} Tickets und nur begrenzt Zeit.`
       : 'Erobere Punkt A: 10 Sekunden allein im Kreis. Solange dein Team ihn hält, verliert der Gegner alle 2 Sekunden ein Ticket.';
     $('tutorialBody').querySelector('.dachs-tip')?.remove();
     if (player.profile.traverse) { const tip = document.createElement('li'); tip.className = 'dachs-tip'; tip.innerHTML = '<b>Dachs</b>: Die Kanone schwenkt nur ±12°. Im Stand dreht sich die Wanne selbst zum Ziel.'; $('tutorialBody').prepend(tip); }
@@ -747,8 +776,15 @@
       const side = temp.set(-direction.z, 0, direction.x).normalize(), up = new T.Vector3().crossVectors(side, direction).normalize();
       direction.addScaledVector(side, Math.cos(angle) * radius).addScaledVector(up, Math.sin(angle) * radius).normalize();
     }
+    // Online: a guest only shows its own shot and asks the host to fire it for real.
+    if (net && !net.host && vehicle === player) IronOnline.send({ t: 'in', k: 'fire', o: vec3(origin), d: vec3(direction) });
+    if (net?.host) emit({ k: 'shot', s: vehicle.slot, o: vec3(origin), d: vec3(direction) });
+    spawnShell(vehicle, origin, direction);
+  }
+  const vec3 = v => [Math.round(v.x * 1000) / 1000, Math.round(v.y * 1000) / 1000, Math.round(v.z * 1000) / 1000];
+  function spawnShell(vehicle, origin, dir) {
     const mesh = new T.Mesh(particleGeometry, puffMaterials[3]); mesh.scale.set(.07, .07, .2); mesh.position.copy(origin); scene.add(mesh);
-    shells.push({ mesh, velocity: direction.clone().multiplyScalar(95), life: 5, owner: vehicle });
+    shells.push({ mesh, velocity: dir.clone().normalize().multiplyScalar(95), life: 5, owner: vehicle });
     puff(origin, vehicle === player ? 13 : 6, 1);
   }
   function impact(hit, shell) {
@@ -764,15 +800,16 @@
     } else if (gameType === 'battle' && hit.object.userData.vehicle) {
       const victim = hit.object.userData.vehicle, attacker = shell.owner;
       if (!victim.alive || victim.team === attacker.team) return;
-      if (victim.shield > 0) { if (attacker === player) notify('ZIEL HAT STARTSCHUTZ', 1); return; }
+      if (net && !net.host) { sparks(hit.point, 6); return; }
+      if (victim.shield > 0) { if (attacker === player) notify('ZIEL HAT STARTSCHUTZ', 1); emit({ k: 'shield', a: attacker.slot }); return; }
       const path = shell.velocity.clone().normalize();
       // Angle between the shell path and the struck plate decides between ricochet and penetration.
       const normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : path.clone().negate();
       if (Systems.ricochet(Math.abs(normal.dot(path)))) {
         sparks(hit.point, 7, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
-        if (attacker === player) hitMarker('ricochet', 'ABPRALLER');
-        if (attacker === player) { stats.ricochets++; notify('ABPRALLER · ZU FLACHER WINKEL\nZiele möglichst senkrecht auf die Panzerung.', 2); }
-        if (victim === player) { stats.bounced++; notify('ABPRALLER AN DEINER PANZERUNG', 1.6); }
+        if (attacker === player) ownBounce();
+        if (victim === player) bouncedOffMe();
+        emit({ k: 'bounce', a: attacker.slot, v: victim.slot });
         return;
       }
       const forward = new T.Vector3(-Math.sin(victim.yaw), 0, -Math.cos(victim.yaw));
@@ -780,15 +817,11 @@
       const moduleHit = Systems.hitModule(victim.systems, victim.root.worldToLocal(hit.point.clone()), victim.profile);
       const damage = Systems.damage(incidence, attacker.profile, victim.profile, moduleHit);
       const where = { front: 'FRONT', side: 'SEITE', rear: 'HECK' }[facing];
-      const moduleText = { tracks: 'KETTE BESCHÄDIGT', engine: 'MOTOR BESCHÄDIGT', turret: victim.profile.traverse ? 'RICHTANTRIEB BESCHÄDIGT' : 'TURMANTRIEB BESCHÄDIGT' }[moduleHit];
       victim.hp = Math.max(0, victim.hp - damage); sparks(hit.point, 10);
-      if (attacker === player && victim.hp > 0) hitMarker(moduleHit ? 'module' : 'hit', moduleText || `−${damage}`);
-      if (attacker === player) { stats.hits++; notify(`DURCHSCHLAG · ${where} · −${damage}${moduleText ? `\n${moduleText}` : ''}`, 2); }
-      if (victim === player) {
-        damageTime = .45; player.lastHit = { by: attacker, where };
-        if (moduleHit) notify({ tracks: 'KETTE AUSGEFALLEN · STILLSTEHEN & REPARIEREN\nRauch gibt dir Deckung.', engine: 'MOTOR BESCHÄDIGT · LEISTUNG REDUZIERT\nStillstehen und reparieren.', turret: `${player.profile.traverse ? 'RICHTANTRIEB' : 'TURMANTRIEB'} BESCHÄDIGT · KANONE SCHWENKT LANGSAM\nStillstehen und reparieren.` }[moduleHit], 4);
-      }
-      if (victim !== player || autopilot) {
+      emit({ k: 'hit', a: attacker.slot, v: victim.slot, dmg: damage, w: where, mod: moduleHit, kill: victim.hp === 0 ? 1 : 0 });
+      if (attacker === player) ownHit(victim, damage, where, moduleHit);
+      if (victim === player) hitMe(attacker, where, moduleHit);
+      if ((victim !== player || autopilot) && !victim.remote) {
         victim.threat = 5;
         // Hurt bots sometimes cover their retreat with smoke.
         if (victim.hp > 0 && victim.hp < 60 && victim.systems.smokeCharges > 1 && skillOf(victim).smoke && random() < .5) deploySmoke(victim);
@@ -796,24 +829,40 @@
       if (victim.hp === 0) {
         victim.alive = false; victim.respawn = 6; victim.root.visible = false;
         puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
-        if (victim === player) { stats.deaths++; velocity = 0; zoom = false; events.push({ type: 'death', where }); }
+        if (victim === player) killedMe(where);
         else { victim.label.hidden = true; victim.ring.visible = false; }
-        if (attacker === player) {
-          hitMarker('kill', 'AUSGESCHALTET');
-          const point = activePoint(), nearPoint = Math.hypot(victim.root.position.x - point.x, victim.root.position.z - point.z) < point.radius + 8;
-          const pressure = match.mode === 'breakthrough' ? match.attacker === 'red' || match.contested : match.owner !== 'red' || match.contested;
-          events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && pressure });
-        }
-        if (attacker === player) { stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\nGegner verliert 5 Tickets.`, 3); }
+        if (attacker === player) ownKill(victim, where);
       }
     }
+  }
+  // Feedback for the player's own shots and for hits on the player; used by the host's rules and by
+  // guests when the host reports what happened.
+  const moduleNames = victim => ({ tracks: 'KETTE BESCHÄDIGT', engine: 'MOTOR BESCHÄDIGT', turret: victim.profile.traverse ? 'RICHTANTRIEB BESCHÄDIGT' : 'TURMANTRIEB BESCHÄDIGT' });
+  function ownBounce() { hitMarker('ricochet', 'ABPRALLER'); stats.ricochets++; notify('ABPRALLER · ZU FLACHER WINKEL\nZiele möglichst senkrecht auf die Panzerung.', 2); }
+  function bouncedOffMe() { stats.bounced++; notify('ABPRALLER AN DEINER PANZERUNG', 1.6); }
+  function ownHit(victim, damage, where, moduleHit) {
+    const moduleText = moduleNames(victim)[moduleHit];
+    if (victim.hp > 0) hitMarker(moduleHit ? 'module' : 'hit', moduleText || `−${damage}`);
+    stats.hits++; notify(`DURCHSCHLAG · ${where} · −${damage}${moduleText ? `\n${moduleText}` : ''}`, 2);
+  }
+  function hitMe(attacker, where, moduleHit) {
+    damageTime = .45; player.lastHit = { by: attacker, where };
+    if (moduleHit) notify({ tracks: 'KETTE AUSGEFALLEN · STILLSTEHEN & REPARIEREN\nRauch gibt dir Deckung.', engine: 'MOTOR BESCHÄDIGT · LEISTUNG REDUZIERT\nStillstehen und reparieren.', turret: `${player.profile.traverse ? 'RICHTANTRIEB' : 'TURMANTRIEB'} BESCHÄDIGT · KANONE SCHWENKT LANGSAM\nStillstehen und reparieren.` }[moduleHit], 4);
+  }
+  function killedMe(where) { stats.deaths++; velocity = 0; zoom = false; events.push({ type: 'death', where }); }
+  function ownKill(victim, where) {
+    hitMarker('kill', 'AUSGESCHALTET');
+    const point = activePoint(), nearPoint = Math.hypot(victim.root.position.x - point.x, victim.root.position.z - point.z) < point.radius + 8;
+    const pressure = match.mode === 'breakthrough' ? match.attacker !== player.team || match.contested : match.owner === player.team || !match.owner || match.contested;
+    events.push({ type: 'kill', victim: victim.callsign, vehicle: victim.profile.name, where, distance: victim.root.position.distanceTo(tank.root.position), zone: nearPoint && pressure });
+    stats.kills++; notify(`FAHRZEUG AUSGESCHALTET · ${victim.callsign}\nGegner verliert 5 Tickets.`, 3);
   }
   function spawnCoordinates(vehicle) {
     if (match.mode === 'breakthrough' && match.stage > 0 && vehicle.team === match.attacker) {
       const [x, z] = layoutFor(Math.min(match.stage, btPoints.length - 1), vehicle.team).spawns[slotIndex(vehicle)];
       return [x, 0, z];
     }
-    const [x, z] = vehicle === player ? level.playerRespawn : level.spawns[vehicle.id];
+    const [x, z] = slotSpawn(vehicle.slot);
     return [x, 0, z];
   }
   function respawnVehicle(vehicle) {
@@ -825,7 +874,8 @@
     if (!place) { vehicle.respawn = .5; return; }
     vehicle.root.position.set(place[0], 0, place[1]); vehicle.root.visible = true; settle(vehicle, vehicle.team === 'blue' ? 0 : Math.PI);
     Object.assign(vehicle, { alive: true, hp: 100, shield: 3, respawn: 0, enemy: null, reload: 1, navigationTimer: 0, thinkTimer: 0, path: [], reaction: 1, systems: Systems.fresh() });
-    if (vehicle === player) { velocity = reload = 0; hullYaw = turretYaw = viewYaw = 0; pitch = -.16; player.lastHit = null; notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3); if (autopilot) Object.assign(player, freshTactics(player), { yaw: 0, turretYaw: 0 }); }
+    vehicle.life = (vehicle.life || 0) + 1;
+    if (vehicle === player) { velocity = reload = 0; hullYaw = turretYaw = viewYaw = teamYaw(player.team); pitch = -.16; player.lastHit = null; notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3); if (autopilot) Object.assign(player, freshTactics(player), { yaw: hullYaw, turretYaw: hullYaw }); }
     else { Object.assign(vehicle, freshTactics(vehicle)); vehicle.yaw = vehicle.turretYaw = vehicle.team === 'blue' ? 0 : Math.PI; settle(vehicle, vehicle.yaw); vehicle.turret.rotation.y = 0; }
   }
   // Per-life tactical state: fast tanks sometimes take a wide flank before joining the fight.
@@ -845,7 +895,15 @@
   let btPoints = [];
   const layouts = new Map();
   function activePoint() { return match.mode === 'breakthrough' ? btPoints[Math.min(match.stage, btPoints.length - 1)] : level.capture; }
-  const slotIndex = vehicle => vehicle === player ? 2 : vehicle.number - 1;
+  // Six fixed slots: blue 0 (centre), 1, 2 · red 3, 4, 5 (centre); mirror pairs 0↔5, 1↔3, 2↔4.
+  // Offline the player is slot 0 and targets[i] slot i + 1; online every human gets a slot from the room.
+  const slotTeam = slot => slot < 3 ? 'blue' : 'red';
+  const slotIndex = vehicle => [2, 0, 1, 0, 1, 2][vehicle.slot];
+  const slotSpawn = slot => slot === 0 ? level.playerRespawn : level.spawns[slot - 1];
+  const slotGoal = slot => slot === 0 ? [level.capture.x, level.capture.z + 5] : level.goals[slot - 1];
+  const teamYaw = team => team === 'blue' ? 0 : Math.PI;
+  // The result seen from the player: 'blue' = won, 'red' = lost (career, key moment, Olympiade).
+  const ownResult = () => match.result === 'draw' || !match.result ? match.result : match.result === player.team ? 'blue' : 'red';
   // Durchbruch positions are generated around each point and nudged out of obstacles (also on the nav grid).
   // Red gets the exact mirror image of blue's positions, so both sides fight on the same ground.
   function layoutFor(index, team) {
@@ -864,11 +922,11 @@
   function isGuard(bot) {
     // A human player is never assigned a role; on autopilot the player's tank is a bot like any other.
     if (bot === player && !autopilot) return false;
-    if (bot.team === 'blue' && inZone(player) && !autopilot) return false;
+    if (bot.team === player.team && inZone(player) && !autopilot) return false;
     let guard = guards[bot.team];
     if (!guard?.alive) {
       const point = activePoint();
-      guard = [...(autopilot ? [player] : []), ...targets].filter(t => t.team === bot.team && t.alive).sort((a, b) => Math.hypot(a.root.position.x - point.x, a.root.position.z - point.z) - Math.hypot(b.root.position.x - point.x, b.root.position.z - point.z))[0] || null;
+      guard = [...(autopilot ? [player] : []), ...targets].filter(t => t.team === bot.team && t.alive && !t.remote).sort((a, b) => Math.hypot(a.root.position.x - point.x, a.root.position.z - point.z) - Math.hypot(b.root.position.x - point.x, b.root.position.z - point.z))[0] || null;
       guards[bot.team] = guard;
     }
     return guard === bot;
@@ -888,7 +946,7 @@
       progress = (bot.team === 'blue' ? 1 : -1) * (1 - match.progress);
     } else {
       const holds = level.holds[bot.team];
-      slot = bot === player ? [level.capture.x, level.capture.z + 5] : level.goals[bot.id]; hold = holds[bot.holdIndex % holds.length];
+      slot = slotGoal(bot.slot); hold = holds[slotIndex(bot)];
     }
     // Flanks only pay off against a held point; in the race for a free point the direct way wins.
     const flank = owner && owner !== bot.team ? bot.flank : null;
@@ -983,19 +1041,26 @@
     for (const vehicle of [player, ...targets]) {
       vehicle.shield = Math.max(0, vehicle.shield - dt);
       if (!vehicle.alive) { vehicle.respawn -= dt; if (vehicle.respawn <= 0) respawnVehicle(vehicle); }
+      else if (vehicle.remote) updateRemote(vehicle, dt);
       else if (vehicle !== player) updateBot(vehicle, dt);
       else if (autopilot) { updateBot(player, dt); hullYaw = player.yaw; turretYaw = player.turretYaw; }
     }
     const inside = [player, ...targets].filter(inZone), alone = inside.length === 1 && inside[0] === player;
     if (inside.includes(player)) stats.captureSeconds += dt;
     match.update(dt, inside.filter(v => v.team === 'blue').length, inside.filter(v => v.team === 'red').length);
+    pointEvents(alone);
+    if (net?.host) { net.snapTime -= dt; if (net.snapTime <= 0 || match.result) { net.snapTime = 1 / 15; sendSnapshot(); } }
+    if (match.result) finishMatch();
+  }
+  // Stage changes, solo captures and zone colours; the host derives them from its rules, guests from snapshots.
+  function pointEvents(alone) {
     const teamColor = { blue: '#79b9d7', red: '#da8365' };
     if (match.mode === 'breakthrough') {
       if (match.stage !== previousStage) {
         const letter = 'AB'[previousStage];
-        if (match.attacker === 'blue' && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+        if (match.attacker === player.team && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
         if (!match.result) {
-          notify(match.attacker === 'blue' ? `PUNKT ${letter} EROBERT · +3:00\nWeiter zu Punkt B.` : `PUNKT ${letter} VERLOREN · +3:00 FÜR DEN GEGNER\nZurück zu Punkt B.`, 4);
+          notify(match.attacker === player.team ? `PUNKT ${letter} EROBERT · +3:00\nWeiter zu Punkt B.` : `PUNKT ${letter} VERLOREN · +3:00 FÜR DEN GEGNER\nZurück zu Punkt B.`, 4);
           guards.blue = guards.red = null; [player, ...targets].forEach(vehicle => { vehicle.navigationTimer = 0; });
           $('objectiveTitle').textContent = objectiveTitle();
         }
@@ -1003,11 +1068,10 @@
       }
       zones.forEach((zone, i) => colorZone(zone, i < match.stage ? teamColor[match.attacker] : i === match.stage ? match.contested ? '#efb36c' : match.progress > .01 ? '#e9d08a' : teamColor[match.defender] : '#8d8a78'));
     } else {
-      if (match.owner === 'blue' && previousOwner !== 'blue' && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
+      if (match.owner === player.team && previousOwner !== player.team && alone) { events.push({ type: 'capture' }); stats.soloCaptures++; }
       colorZone(zones[0], match.contested ? '#efb36c' : teamColor[match.owner] || '#dfc18c');
     }
     previousOwner = match.owner;
-    if (match.result) finishMatch();
   }
   function finishMatch() {
     if (mode === 'result') return;
@@ -1015,18 +1079,22 @@
     mode = 'result'; keys.clear(); zoom = false; velocity = 0; document.body.classList.remove('pointer-locked', 'aim-active');
     if (document.pointerLockElement) document.exitPointerLock();
     if (match.mode === 'breakthrough') {
-      const attacking = match.attacker === 'blue', won = match.result === 'blue';
+      const attacking = match.attacker === player.team, won = match.result === player.team;
       $('resultTitle').textContent = attacking ? won ? 'Durchbruch geschafft.' : 'Angriff gescheitert.' : won ? 'Stellung gehalten.' : 'Stellung verloren.';
       $('resultReason').textContent = `${match.captured >= match.stages ? 'Punkt B ist gefallen.' : match.tickets[match.attacker] <= 0 ? 'Die Angreifer haben keine Tickets mehr.' : 'Zeit abgelaufen.'} ${match.captured} von ${match.stages} Punkten erobert, ${match.tickets[match.attacker]} Angriffstickets übrig.`;
     } else {
-      $('resultTitle').textContent = match.result === 'blue' ? `${level.name} gesichert.` : match.result === 'red' ? 'Gefecht verloren.' : 'Unentschieden.';
+      $('resultTitle').textContent = match.result === player.team ? `${level.name} gesichert.` : match.result === 'draw' ? 'Unentschieden.' : 'Gefecht verloren.';
       $('resultReason').textContent = `${match.time <= 0 ? 'Zeit abgelaufen.' : 'Ein Team hat keine Tickets mehr.'} Blau ${match.tickets.blue} : ${match.tickets.red} Rot.`;
     }
     $('resultStats').innerHTML = `<span>ABSCHÜSSE<b>${stats.kills}</b></span><span>WIRKSAME TREFFER<b>${stats.hits}</b></span><span>EIGENE VERLUSTE<b>${stats.deaths}</b></span><span>SEKUNDEN AM ZIEL<b>${Math.floor(stats.captureSeconds)}</b></span>`;
-    const { moment, tip } = IronBattle.keyMoment(events, stats, match.result);
+    const { moment, tip } = IronBattle.keyMoment(events, stats, ownResult());
     $('keyMoment').textContent = moment || 'Kein Abschuss in diesem Gefecht.'; $('keyTip').textContent = tip || ''; $('keyTip').hidden = !tip;
     $('result').hidden = false; $('respawn').hidden = true; targets.forEach(t => { t.label.hidden = true; });
     recordRound();
+    if (net) {
+      if (net.host) IronOnline.send({ t: 'end', result: match.result, tickets: [ticketOut(match.tickets.blue), ticketOut(match.tickets.red)], captured: match.captured ?? 0 });
+      $('rematchButton').firstChild.textContent = 'ZURÜCK ZUR LOBBY ';
+    }
     if (olympia && gameType === 'battle') olympiaMelden();
   }
   // Ergebnis an den eigenen Server, der die Punkte rechnet und an die Olympiade meldet
@@ -1035,7 +1103,7 @@
     if (!olympBox) { olympBox = document.createElement('div'); olympBox.className = 'olymp-result'; $('rematchButton').before(olympBox); }
     olympBox.innerHTML = '<span class="eyebrow">OLYMPIADE</span><strong>Wird gewertet …</strong>';
     $('rematchButton').firstChild.textContent = 'ZURÜCK ZUR OLYMPIADE '; $('rematchButton').onclick = zurOlympiade; $('menuButton').hidden = true;
-    const werte = { result: match.result, kills: stats.kills, hits: stats.hits, deaths: stats.deaths, captureSeconds: stats.captureSeconds };
+    const werte = { result: ownResult(), kills: stats.kills, hits: stats.hits, deaths: stats.deaths, captureSeconds: stats.captureSeconds };
     for (let versuch = 0; versuch < 4; versuch++) {
       try {
         const r = await fetch('/api/olymp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: olympia.ticket, art: 'ergebnis', werte }) });
@@ -1070,8 +1138,10 @@
     if (Math.abs(velocity) < .025) velocity = 0;
     steerInput = steer; throttleInput = throttle;
     hullYaw += steer * profile.turn * mobility * dt * (velocity < -.3 ? -1 : 1) * (1 - Math.abs(velocity) / 30);
-    if (!autopilot && Systems.repair(player.systems, dt, repairHeld, !!throttle || !!steer || Math.abs(velocity) > .2, player.alive)) {
-      const underFire = targets.some(t => t.alive && t.team !== 'blue' && t.enemy === player);
+    const moving = !!throttle || !!steer || Math.abs(velocity) > .2;
+    if (net) { net.repairHeld = repairHeld; net.moving = moving; }
+    if (!autopilot && !(net && !net.host) && Systems.repair(player.systems, dt, repairHeld, moving, player.alive)) {
+      const underFire = targets.some(t => t.alive && t.team !== player.team && t.enemy === player);
       if (underFire) stats.fieldRepairs++;
       notify(underFire ? 'REPARATUR UNTER BESCHUSS ABGESCHLOSSEN' : 'REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
     }
@@ -1105,7 +1175,8 @@
     if (tutorialTime > 0) { tutorialTime -= dt; if (tutorialTime <= 0) $('tutorial').hidden = true; }
     damageTime = Math.max(0, damageTime - dt);
     updateSmoke(dt);
-    if (gameType === 'battle') updateBattle(dt);
+    if (net && !net.host) updateGuest(dt);
+    else if (gameType === 'battle') updateBattle(dt);
   }
   function updateCamera(dt, immediate = false) {
     if (mode === 'menu') {
@@ -1161,7 +1232,7 @@
       });
     }
     targets.forEach(target => {
-      if (!target.alive || (gameType === 'battle' && target.team === 'red' && !target.visibleToPlayer)) return;
+      if (!target.alive || (gameType === 'battle' && target.team !== player.team && !target.visibleToPlayer)) return;
       map.strokeStyle = gameType === 'battle' ? target.team === 'blue' ? '#94c6db' : '#f2a084' : target.hits ? '#b1d29b' : '#efa665'; map.lineWidth = 1.5;
       map.strokeRect(center + target.root.position.x * scale - 3, center + target.root.position.z * scale - 3, 6, 6);
     });
@@ -1198,10 +1269,10 @@
       const seconds = Math.ceil(match.time); $('matchTime').textContent = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
       if (match.mode === 'breakthrough') {
         const letter = 'AB'[Math.min(match.stage, 1)], percent = Math.round(match.progress * 100);
-        $('score').textContent = `PUNKT ${letter} · ${match.contested ? 'UMKÄMPFT' : percent ? `EROBERUNG ${percent}%` : match.attacker === 'blue' ? 'IN VERTEIDIGERHAND' : 'GEHALTEN'}`;
+        $('score').textContent = `PUNKT ${letter} · ${match.contested ? 'UMKÄMPFT' : percent ? `EROBERUNG ${percent}%` : match.attacker === player.team ? 'IN VERTEIDIGERHAND' : 'GEHALTEN'}`;
         $('captureBar').style.width = `${match.progress * 100}%`; $('captureBar').style.background = match.attacker === 'blue' ? '#94c6db' : '#f2a084';
       } else {
-        $('score').textContent = match.contested ? 'PUNKT A · UMKÄMPFT' : match.owner === 'blue' ? 'PUNKT A · DEIN TEAM' : match.owner === 'red' ? 'PUNKT A · GEGNER' : `PUNKT A · ${Math.abs(match.progress) > .01 ? 'EROBERUNG ' + Math.round(Math.abs(match.progress) * 100) + '%' : 'NEUTRAL'}`;
+        $('score').textContent = match.contested ? 'PUNKT A · UMKÄMPFT' : match.owner === player.team ? 'PUNKT A · DEIN TEAM' : match.owner ? 'PUNKT A · GEGNER' : `PUNKT A · ${Math.abs(match.progress) > .01 ? 'EROBERUNG ' + Math.round(Math.abs(match.progress) * 100) + '%' : 'NEUTRAL'}`;
         $('captureBar').style.width = `${Math.abs(match.progress) * 100}%`; $('captureBar').style.background = match.progress >= 0 ? '#94c6db' : '#f2a084';
       }
       $('healthBar').style.width = `${player.hp}%`; $('healthBar').style.background = player.hp < 35 ? '#f2a084' : '#a1c390';
@@ -1211,12 +1282,152 @@
       $('damageFlash').hidden = damageTime <= 0;
       for (const bot of targets) {
         temp.copy(bot.root.position); temp.y += 4.2; temp.project(camera);
-        const visible = mode === 'playing' && bot.alive && (bot.team === 'blue' || bot.visibleToPlayer) && temp.z < 1 && Math.abs(temp.x) < 1 && Math.abs(temp.y) < 1;
+        const visible = (mode === 'playing' || mode === 'paused') && bot.alive && (bot.team === player.team || bot.visibleToPlayer) && temp.z < 1 && Math.abs(temp.x) < 1 && Math.abs(temp.y) < 1;
         bot.label.hidden = !visible;
-        if (visible) { bot.label.style.left = `${(temp.x * .5 + .5) * innerWidth}px`; bot.label.style.top = `${(-temp.y * .5 + .5) * innerHeight}px`; bot.label.innerHTML = `${bot.team === 'blue' ? '◆' : '◇'} ${bot.callsign} · ${bot.profile.name}<i style="width:${bot.hp * .55}px"></i>`; }
+        if (visible) { bot.label.style.left = `${(temp.x * .5 + .5) * innerWidth}px`; bot.label.style.top = `${(-temp.y * .5 + .5) * innerHeight}px`; bot.label.innerHTML = `${bot.team === player.team ? '◆' : '◇'} ${bot.callsign} · ${bot.profile.name}<i style="width:${bot.hp * .55}px"></i>`; }
       }
     }
   }
+  // ---------------- Online ----------------
+  // The host's browser runs bots, hits and the match; guests drive their own tank and follow the host.
+  function emit(event) { if (net?.host) IronOnline.send({ t: 'ev', ...event }); }
+  const ticketOut = value => Number.isFinite(value) ? value : -1, ticketIn = value => value < 0 ? Infinity : value;
+  const bySlot = slot => slot === player.slot ? player : targets.find(target => target.slot === slot);
+  const round2 = value => Math.round(value * 100) / 100;
+  function sendSnapshot() {
+    const vehicles = [player, ...targets].sort((a, b) => a.slot - b.slot);
+    IronOnline.send({ t: 'snap', m: [round2(match.time), ticketOut(match.tickets.blue), ticketOut(match.tickets.red), match.owner || '', round2(match.progress), match.contested ? 1 : 0, match.stage ?? 0, match.captured ?? 0],
+      v: vehicles.map(v => [round2(v.root.position.x), round2(v.root.position.z), round2(v === player ? hullYaw : v.yaw), round2(v === player ? turretYaw : v.turretYaw), round2(v.gun.rotation.x), v.hp, v.alive ? 1 : 0, round2(v.respawn), v.shield > 0 ? 1 : 0,
+        (v.systems.tracks ? 0 : 1) | (v.systems.engine ? 0 : 2) | (v.systems.turret ? 0 : 4), v.life || 0, v.systems.smokeCharges, round2(v.systems.repair), round2(v.systems.smokeCooldown)]) });
+  }
+  // Remote tanks glide towards their last reported pose.
+  function followNet(vehicle, dt) {
+    const s = vehicle.netState; if (!s) return;
+    const k = 1 - Math.exp(-14 * dt), p = vehicle.root.position;
+    p.x += (s.x - p.x) * k; p.z += (s.z - p.z) * k;
+    vehicle.yaw += shortest(s.yaw - vehicle.yaw) * k; vehicle.turretYaw += shortest(s.turret - vehicle.turretYaw) * k;
+    settle(vehicle, vehicle.yaw); vehicle.turret.rotation.y = vehicle.turretYaw - vehicle.yaw; vehicle.gun.rotation.x = s.pitch;
+  }
+  // Host side: a human guest's tank. Position comes from the guest, modules and repairs from the host.
+  function updateRemote(vehicle, dt) {
+    followNet(vehicle, dt);
+    vehicle.netReload = Math.max(0, (vehicle.netReload || 0) - dt);
+    const s = vehicle.netState;
+    Systems.repair(vehicle.systems, dt, !!s?.repair, !!s?.moving, vehicle.alive);
+  }
+  function hostInput(d) {
+    if (!net?.host || mode === 'menu' || mode === 'result') return;
+    const vehicle = targets.find(target => target.remote === d.from); if (!vehicle) return;
+    if (d.k === 'fire') {
+      if (!vehicle.alive || vehicle.netReload > 0 || !Array.isArray(d.o) || !Array.isArray(d.d)) return;
+      vehicle.netReload = vehicle.profile.reload - .3; vehicle.shield = 0; vehicle.systems.repair = 0;
+      const origin = new T.Vector3(...d.o.map(Number)), dir = new T.Vector3(...d.d.map(Number));
+      if (origin.distanceTo(vehicle.root.position) > 14 || !(dir.lengthSq() > .5)) return;
+      emit({ k: 'shot', s: vehicle.slot, o: d.o, d: d.d }); spawnShell(vehicle, origin, dir);
+    } else if (d.k === 'smoke') { if (vehicle.alive) deploySmoke(vehicle); }
+    else if (Array.isArray(d.p) && d.l === vehicle.life && vehicle.alive) {
+      const [x, z, yaw, turret, pitch] = d.p.map(Number);
+      if ([x, z, yaw, turret, pitch].every(Number.isFinite)) vehicle.netState = { x: clamp(x, -146, 146), z: clamp(z, -146, 146), yaw, turret, pitch: clamp(pitch, -.3, .45), repair: !!d.r, moving: !!d.m };
+    }
+  }
+  // Guest side: send the own tank, follow everyone else.
+  function updateGuest(dt) {
+    net.sendTime -= dt;
+    if (net.sendTime <= 0) {
+      net.sendTime = .05;
+      IronOnline.send({ t: 'in', l: player.life, p: [round2(tank.root.position.x), round2(tank.root.position.z), round2(hullYaw), round2(turretYaw), round2(tank.gun.rotation.x)], r: net.repairHeld ? 1 : 0, m: net.moving ? 1 : 0 });
+    }
+    for (const target of targets) { if (target.netState) followNet(target, dt); target.shield = Math.max(0, target.shield - dt); }
+    player.shield = Math.max(0, player.shield - dt); if (!player.alive) player.respawn = Math.max(0, player.respawn - dt);
+    if (inZone(player)) stats.captureSeconds += dt;
+    net.seeTime -= dt;
+    if (net.seeTime <= 0) { net.seeTime = .3; for (const target of targets) target.visibleToPlayer = target.team !== player.team && canSee(player, target); }
+    pointEvents(inZone(player) && [player, ...targets].filter(inZone).length === 1);
+  }
+  function applySnapshot(d) {
+    if (!net || net.host || mode === 'menu' || mode === 'result' || !Array.isArray(d.v)) return;
+    const [time, blue, red, owner, progress, contested, stage, captured] = d.m;
+    Object.assign(match, { time, owner: owner || null, progress, contested: !!contested }); match.tickets.blue = ticketIn(blue); match.tickets.red = ticketIn(red);
+    if (match.mode === 'breakthrough') { match.stage = stage; match.captured = captured; }
+    d.v.forEach((row, slot) => {
+      const v = bySlot(slot); if (!v) return;
+      const [x, z, yaw, turret, pitch, hp, alive, respawn, shield, broken, life, smoke, repair, smokeCooldown] = row;
+      const wasDamaged = Systems.damaged(v.systems), wasAlive = v.alive;
+      Object.assign(v, { hp, alive: !!alive, respawn, shield: shield ? 1 : 0 });
+      Object.assign(v.systems, { tracks: broken & 1 ? 0 : 100, engine: broken & 2 ? 0 : 100, turret: broken & 4 ? 0 : 100, smokeCharges: smoke, repair, smokeCooldown });
+      if (v === player) {
+        if (wasAlive && !v.alive) { velocity = 0; zoom = false; tank.root.visible = false; }
+        if (life !== player.life) {
+          player.life = life; tank.root.position.set(x, 0, z); hullYaw = turretYaw = viewYaw = yaw; velocity = reload = 0; pitch = -.16; player.lastHit = null; tank.root.visible = true;
+          notify('WIEDER IM GEFECHT · 3 SEKUNDEN SCHUTZ', 3);
+        }
+        if (wasDamaged && !Systems.damaged(v.systems) && v.alive) notify('REPARATUR ABGESCHLOSSEN · FAHRBEREIT', 3);
+      } else {
+        v.netState = { x, z, yaw, turret, pitch };
+        if (life !== v.life) { v.life = life; v.root.position.set(x, 0, z); v.yaw = v.turretYaw = yaw; settle(v, yaw); }
+        v.root.visible = v.alive; if (!v.alive) v.label.hidden = true;
+      }
+    });
+  }
+  function applyEvent(e) {
+    if (!net || net.host || mode === 'menu' || mode === 'result') return;
+    const mine = player.slot, attacker = bySlot(e.a), victim = bySlot(e.v);
+    if (e.k === 'shot') { const shooter = bySlot(e.s); if (shooter && e.s !== mine) spawnShell(shooter, new T.Vector3(...e.o), new T.Vector3(...e.d)); }
+    else if (e.k === 'smoke') { const owner = bySlot(e.s); if (owner) { smokeCloud(owner); if (owner === player) player.systems.smokeCharges = Math.max(0, player.systems.smokeCharges - 1); } }
+    else if (e.k === 'shield') { if (e.a === mine) notify('ZIEL HAT STARTSCHUTZ', 1); }
+    else if (e.k === 'bounce') { if (e.a === mine) ownBounce(); if (e.v === mine) bouncedOffMe(); }
+    else if (e.k === 'hit' && attacker && victim) {
+      victim.hp = Math.max(0, victim.hp - e.dmg);
+      if (e.a === mine) ownHit(victim, e.dmg, e.w, e.mod);
+      if (e.v === mine) hitMe(attacker, e.w, e.mod);
+      if (e.kill) {
+        victim.alive = false; puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1);
+        if (victim === player) { killedMe(e.w); tank.root.visible = false; } else { victim.root.visible = false; victim.label.hidden = true; }
+        if (e.a === mine) ownKill(victim, e.w);
+      }
+    }
+  }
+  const settingsBeforeOnline = {};
+  function startOnline(start) {
+    const me = start.slots.find(seat => seat.human === start.you); if (!me || !careerStore) return;
+    if (!net) Object.assign(settingsBeforeOnline, { selectedMap, mission, difficulty, selectedVehicle });
+    if (olympia) { try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {} }
+    net = { host: start.host === start.you, slot: me.slot, seats: start.slots, sendTime: 0, snapTime: 0, seeTime: 0 };
+    ({ map: selectedMap, mission, difficulty } = start.settings); selectedVehicle = me.vehicle; seed = start.seed >>> 0 || 1;
+    IronOnline.hide(); $('careerPanel').hidden = true; gameType = 'battle'; reset(); play();
+    $('resetButton').hidden = true;
+    notify(`${objectiveTitle()} · ${player.team === 'blue' ? 'Blau' : 'Rot'} ist dein Team${net.host ? '\nDu bist Gastgeber: Lass diesen Tab vorne.' : ''}`, 6); showTutorial(false);
+  }
+  function endOnline() {
+    if (!net) return;
+    net = null; ({ selectedMap, mission, difficulty, selectedVehicle } = settingsBeforeOnline);
+    $('resetButton').hidden = !!olympia; if (!olympia) $('rematchButton').firstChild.textContent = 'NEUES GEFECHT ';
+  }
+  function onlineEnd(d) {
+    if (!net || net.host || mode === 'menu') return;
+    match.result = d.result; if (Array.isArray(d.tickets)) { match.tickets.blue = ticketIn(d.tickets[0]); match.tickets.red = ticketIn(d.tickets[1]); }
+    if (match.mode === 'breakthrough') match.captured = d.captured ?? match.captured;
+    finishMatch();
+  }
+  function leaveOnlineBattle(text) { const wasOnline = !!net; endOnline(); if (!wasOnline) return; garage(); IronOnline.show(); if (text) $('lobbyStatus').textContent = text; }
+  // Online is optional: if online.js did not load, the game still works alone.
+  const IronOnline = window.IronOnline || { init() { $('onlineButton').hidden = true; }, on() {}, send() {}, show() {}, hide() {}, olymp() {} };
+  IronOnline.init({ vehicle: () => selectedVehicle, allowed: id => !!olympia || id !== 'dachs' || !dachsLocked() });
+  IronOnline.on('start', startOnline); IronOnline.on('snap', applySnapshot); IronOnline.on('ev', applyEvent); IronOnline.on('in', hostInput); IronOnline.on('end', onlineEnd);
+  IronOnline.on('closed', d => {
+    if (!net) return;
+    if (olympia && !olympia.gemeldet && mode !== 'menu' && mode !== 'result') {
+      match.result = 'abgebrochen'; finishMatch(); $('resultTitle').textContent = 'Gefecht abgebrochen.'; $('resultReason').textContent = `${d.text} Deine Werte bis hierhin zählen.`;
+      endOnline(); return;
+    }
+    leaveOnlineBattle(d.text);
+  });
+  IronOnline.on('left', d => {
+    const vehicle = targets.find(target => target.remote === d.id); if (!vehicle) return;
+    vehicle.remote = null; vehicle.netState = null; vehicle.callsign += ' (BOT)'; vehicle.label.classList.remove('human');
+    Object.assign(vehicle, freshTactics(vehicle), { path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1 });
+    notify(`${vehicle.callsign.replace(' (BOT)', '')} HAT DAS GEFECHT VERLASSEN · EIN BOT ÜBERNIMMT`, 3);
+  });
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   window.addEventListener('resize', resize);
   $('world').addEventListener('webglcontextlost', event => { event.preventDefault(); pause(); $('pause').hidden = true; $('menu').hidden = false; $('hud').hidden = true; fail('Die Grafikverbindung wurde unterbrochen. Bitte lade die Seite neu.'); });
@@ -1238,7 +1449,8 @@
     requestAnimationFrame(frame); const raw = (now - previous) / 1000, dt = Math.min(raw, .08); previous = now; elapsed += dt;
     if (autoQuality) watchFrameRate(raw);
     if (showFps) { fpsFrames++; fpsTime += raw; if (fpsTime >= .5) { $('fps').textContent = `${Math.round(fpsFrames / fpsTime)} FPS · ${quality === 'high' ? 'HOCH' : quality === 'medium' ? 'MITTEL' : 'NIEDRIG'}`; fpsFrames = fpsTime = 0; } }
-    if (mode === 'playing') { accumulator += dt; while (accumulator >= 1 / 60 && mode === 'playing') { step(1 / 60); accumulator -= 1 / 60; } updateCamera(dt); hudTime += dt; if (hudTime > .06) { updateHud(); hudTime = 0; } }
+    const running = mode === 'playing' || (net && mode === 'paused');
+    if (running) { accumulator += dt; while (accumulator >= 1 / 60 && (mode === 'playing' || (net && mode === 'paused'))) { step(1 / 60); accumulator -= 1 / 60; } updateCamera(dt); hudTime += dt; if (hudTime > .06) { updateHud(); hudTime = 0; } }
     else { accumulator = 0; if (mode === 'menu') updateCamera(dt); }
     renderer.render(scene, camera);
   }
@@ -1269,12 +1481,12 @@
   // Test hook: feeds synthetic frame times into the automatic graphics check.
   function sampleFrames(fps, seconds) { for (let i = 0; i < Math.round(fps * seconds); i++) { elapsed += 1 / fps; watchFrameRate(1 / fps); } return quality; }
   window.ironHorizon = Object.freeze({ sim, balance, sampleFrames, getState: () => ({
-    mode, gameType, touchMode, quality, difficulty: matchDifficulty.id, mission: matchMission, skills: { blue: teamSkill.blue.id, red: teamSkill.red.id }, dachsLocked: dachsLocked(), gun: (() => { const at = tank.gun.getWorldPosition(new T.Vector3()); let shown = true; for (let node = tank.gun; node; node = node.parent) shown = shown && node.visible; return { x: at.x, y: at.y, z: at.z, pitch: tank.gun.rotation.x, shown, scale: tank.gun.scale.toArray(), children: tank.gun.children.length }; })(), ground: ground(tank.root.position.x, tank.root.position.z), tilt: { pitch: tank.root.rotation.x, roll: tank.root.rotation.z }, awards: [...careerStore.state.awards], invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
+    mode, gameType, touchMode, quality, online: net ? { host: net.host, slot: net.slot, team: player.team } : null, team: player.team, difficulty: matchDifficulty.id, mission: matchMission, skills: { blue: teamSkill.blue.id, red: teamSkill.red.id }, dachsLocked: dachsLocked(), gun: (() => { const at = tank.gun.getWorldPosition(new T.Vector3()); let shown = true; for (let node = tank.gun; node; node = node.parent) shown = shown && node.visible; return { x: at.x, y: at.y, z: at.z, pitch: tank.gun.rotation.x, shown, scale: tank.gun.scale.toArray(), children: tank.gun.children.length }; })(), ground: ground(tank.root.position.x, tank.root.position.z), tilt: { pitch: tank.root.rotation.x, roll: tank.root.rotation.z }, awards: [...careerStore.state.awards], invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
     position: { x: tank.root.position.x, z: tank.root.position.z }, speed: velocity, hullYaw, turretYaw, viewYaw, reload, hitCount,
-    hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length,
+    hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length, shellOwners: shells.map(shell => shell.owner.slot),
     career: { xp: careerStore.state.xp, matches: careerStore.state.matches, rank: Career.rank(careerStore.state.xp).current.name, paint: careerStore.state.paints[player.profile.id], warning: careerStore.warning },
     match: { mode: match.mode || 'domination', stage: match.stage ?? 0, attacker: match.attacker ?? null, captured: match.captured ?? 0, time: match.time, tickets: { ...match.tickets }, owner: match.owner, contested: match.contested, progress: match.progress, result: match.result }, stats: { ...stats },
-    targets: targets.map(t => ({ x: t.root.position.x, z: t.root.position.z, hits: t.hits, hp: t.hp, alive: t.alive, team: t.team, vehicle: t.profile.id, systems: { ...t.systems }, visible: t.visibleToPlayer, pathLength: t.path.length, kind: t.goalKind })), renderedFrames: renderer.info.render.frame
+    targets: targets.map(t => ({ slot: t.slot, remote: t.remote, callsign: t.callsign, x: t.root.position.x, z: t.root.position.z, hits: t.hits, hp: t.hp, alive: t.alive, team: t.team, vehicle: t.profile.id, systems: { ...t.systems }, visible: t.visibleToPlayer, pathLength: t.path.length, kind: t.goalKind })), renderedFrames: renderer.info.render.frame
   }) });
   requestAnimationFrame(frame);
 })();

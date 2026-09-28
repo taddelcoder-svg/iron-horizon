@@ -18,7 +18,8 @@
   <script defer src="career.js"></script>
   <script defer src="maps.js"></script>
   <script defer src="terrain.js"></script>
-  <script defer src="game.js?v=1.0"></script>
+  <script defer src="online.js"></script>
+  <script defer src="game.js?v=1.1"></script>
 </head>
 <body>
   <canvas id="world" aria-label="Iron Horizon 3D-Panzergefecht"></canvas>
@@ -31,7 +32,7 @@
   </header>
   <main id="menu" class="menu">
     <section class="intro">
-      <div class="eyebrow"><span></span> IRON HORIZON / 1.0</div>
+      <div class="eyebrow"><span></span> IRON HORIZON / 1.1</div>
       <h1>STAHL.<br>STAUB.<br><em>DEIN REVIER.</em></h1>
       <p>Spür das Gewicht. Dreh den Turm.<br>Setz den ersten Treffer.</p>
       <div class="mission"><span id="missionNumber" class="number">01</span><div><b id="missionTitle">Grenzposten erobern.</b><p id="missionText">Du und zwei Verbündete gegen drei Gegner.<br>Haltet Punkt A und entscheidet das Gefecht.</p></div></div>
@@ -42,8 +43,8 @@
       <div class="vehicle-picker" aria-label="Fahrzeug wählen"><button id="selectLuchs" aria-pressed="true"><b>01 · LUCHS</b><span>Schnell & beweglich</span></button><button id="selectKeiler" aria-pressed="false"><b>02 · KEILER</b><span>Starke Front & Feuerkraft</span></button><button id="selectDachs" aria-pressed="false"><b>03 · DACHS</b><span id="dachsHint">Jagdpanzer · Gefecht ab Frontkämpfer</span></button></div>
       <div id="olympCard" class="olymp-card" hidden></div>
       <button id="startButton" class="primary" disabled>GELÄNDE WIRD GELADEN <span>↗</span></button>
-      <button id="trainingButton" class="training-link" disabled>Erst üben · Testgelände öffnen</button>
-      <div class="menu-foot">EINZELSPIELER <span>•</span> <b id="menuInput">MAUS & TASTATUR</b> <span>•</span> <a href="/datenschutz" target="_blank" rel="noopener">DATENSCHUTZ</a></div>
+      <div class="menu-links"><button id="onlineButton" class="training-link online-link">Online spielen · mit Raumcode ↗</button><button id="trainingButton" class="training-link" disabled>Erst üben · Testgelände</button></div>
+      <div class="menu-foot">EINZELN ODER ONLINE <span>•</span> <b id="menuInput">MAUS & TASTATUR</b> <span>•</span> <a href="/datenschutz" target="_blank" rel="noopener">DATENSCHUTZ</a></div>
       <p id="error" role="alert" hidden></p>
     </section>
     <aside class="vehicle-card"><div class="eyebrow">DEIN FAHRZEUG <span id="vehicleIndex">01 / 02</span></div><h2 id="vehicleName">LUCHS <span>MK. I</span></h2><p id="vehicleRole">LEICHTER PANZER · AUFKLÄRUNG</p><div class="stats"><div><b id="vehicleSpeed">52<small>KM/H</small></b><span>MOBILITÄT</span></div><div><b id="vehicleCalibre">40<small>MM</small></b><span>KALIBER</span></div><div><b id="vehicleReload">3<small>SEK.</small></b><span>NACHLADEN</span></div></div><div id="vehicleNote" class="vehicle-note">Leicht auf den Ketten. Schnell an der Flanke.</div><div id="garagePaints" class="paint-swatches" aria-label="Tarnung wählen"></div></aside>
@@ -81,6 +82,31 @@
   <section id="pause" class="modal" hidden><div class="panel"><span class="eyebrow">GRENZPOSTEN 01</span><h2>Kurze Feuerpause.</h2><p id="pauseHint">Weiterfahren setzt das Spiel fort. Esc gibt die Maus frei und pausiert.</p><button id="resumeButton" class="primary">WEITERFAHREN <span>↗</span></button><label>Mausgeschwindigkeit <input id="sensitivity" type="range" min="0.4" max="2" step="0.1" value="1"></label><label><input id="shake" type="checkbox" checked> Rückstoß-Kamera</label><label><input id="invertY" type="checkbox"> Y-Achse umkehren</label><label><input id="showFps" type="checkbox"> Bildrate anzeigen</label><label>Grafik <select id="quality"><option value="high">Hoch</option><option value="medium">Mittel</option><option value="low">Niedrig · ohne Schatten</option></select></label><button id="controlsButton" class="outline">STEUERUNG ANZEIGEN</button><button id="retryMouseButton" class="outline" hidden>MAUSBINDUNG ERNEUT VERSUCHEN</button><button id="resetButton" class="outline">RUNDE NEU STARTEN</button><button id="garageButton" class="outline">RUNDE VERLASSEN · ZUR GARAGE</button><a id="externalBrowser" class="browser-link" href="./" target="_blank" rel="noopener" hidden>In einem separaten Browserfenster öffnen ↗</a><a href="/datenschutz" target="_blank" rel="noopener">Datenschutz</a></div></section>
   <section id="result" class="modal" hidden><div class="panel"><span class="eyebrow">GEFECHT BEENDET</span><h2 id="resultTitle">Sieg.</h2><p id="resultReason"></p><div id="resultStats" class="result-stats"></div><div class="key-moment"><span class="eyebrow">SCHLÜSSELMOMENT</span><p id="keyMoment"></p><p id="keyTip" class="key-tip" hidden></p></div><div class="earned-xp"><strong id="earnedXp">Erfahrung wird gezählt …</strong><p id="xpBreakdown"></p><p id="unlockNotice"></p><span id="saveStatus" role="status"></span></div><button id="rematchButton" class="primary">NEUES GEFECHT <span>↗</span></button><button id="menuButton" class="outline">ZUR GARAGE</button></div></section>
   <section id="careerPanel" class="modal" role="dialog" aria-modal="true" aria-labelledby="careerTitle" hidden><div class="panel career-panel"><div class="career-heading"><span class="eyebrow">DEIN FAHRERPROFIL</span><button id="closeCareer" class="outline" aria-label="Profil schließen">✕</button></div><h2 id="careerTitle">Rekrut</h2><p id="careerProgress"></p><div class="career-progress"><i id="careerProgressBar"></i></div><div id="careerStats" class="career-stats"></div><div class="career-heading"><h3>Tarnungen</h3><span id="paintVehicle"></span></div><p class="cosmetic-note">Nur die Optik verändert sich. Luchs und Keiler sind immer spielbar, der Dachs im Gefecht ab Rang Frontkämpfer.</p><div id="careerPaints" class="career-paints"></div><div class="career-heading"><h3>Auszeichnungen</h3><span id="awardCount">0 / 8</span></div><ul id="careerAwards" class="career-awards"></ul><p id="careerStatus" role="status"></p><div class="save-actions"><button id="exportSave" class="outline">SPIELSTAND EXPORTIEREN</button><button id="importSave" class="outline">SPIELSTAND IMPORTIEREN</button><input id="saveFile" type="file" accept="application/json,.json" hidden></div><div id="importPreview" class="import-preview" hidden><p id="importDetails"></p><button id="confirmImport" class="primary">SPIELSTAND ERSETZEN</button><button id="cancelImport" class="outline">ABBRECHEN</button></div><p class="local-note">Lokal in diesem Browser gespeichert. Exportiere eine Sicherung für andere Geräte oder Browser.</p></div></section>
+  <section id="lobby" class="modal" role="dialog" aria-modal="true" aria-labelledby="lobbyTitle" hidden><div class="panel lobby-panel">
+    <div class="career-heading"><span class="eyebrow">ONLINE-GEFECHT · BIS 6 SPIELER</span><button id="closeLobby" class="outline" aria-label="Lobby schließen">✕</button></div>
+    <h2 id="lobbyTitle">Online spielen.</h2>
+    <label class="lobby-field">DEIN NAME <input id="lobbyName" maxlength="14" autocomplete="nickname" placeholder="Spieler"></label>
+    <div id="lobbyJoin">
+      <button id="createRoom" class="primary">RAUM ERSTELLEN <span>↗</span></button>
+      <div class="join-row"><input id="roomCode" maxlength="4" placeholder="CODE" aria-label="Raumcode" autocapitalize="characters"><button id="joinRoom" class="outline">BEITRETEN</button></div>
+    </div>
+    <div id="lobbyOlymp" class="lobby-olymp" hidden><span class="eyebrow">DEINE OLYMPIA-GRUPPE</span><ul id="olympExpected"></ul></div>
+    <div id="lobbyRoom" hidden>
+      <div class="room-code"><span>RAUM</span><b id="roomCodeLabel">----</b><button id="copyInvite" class="outline">EINLADUNGSLINK KOPIEREN</button></div>
+      <div class="teams"><div><h3 class="blue">BLAU</h3><ul id="teamBlue"></ul><button id="joinBlue" class="outline">ZU BLAU</button></div><div><h3 class="red">ROT</h3><ul id="teamRed"></ul><button id="joinRed" class="outline">ZU ROT</button></div></div>
+      <div id="lobbyVehicles" class="vehicle-picker lobby-vehicles" aria-label="Dein Panzer"><button data-vehicle="luchs"><b>LUCHS</b><span>Schnell</span></button><button data-vehicle="keiler"><b>KEILER</b><span>Starke Front</span></button><button data-vehicle="dachs"><b>DACHS</b><span>Jagdpanzer</span></button></div>
+      <div class="picker-row lobby-settings">
+        <div class="map-picker"><label for="roomMap">KARTE</label><select id="roomMap"><option value="border">Grenzposten</option><option value="quarry">Steinbruch</option><option value="valley">Flusstal</option></select></div>
+        <div class="map-picker"><label for="roomMission">MODUS</label><select id="roomMission"><option value="domination">Vorherrschaft</option><option value="attack">Durchbruch · Blau greift an</option><option value="defense">Durchbruch · Rot greift an</option></select></div>
+        <div class="map-picker"><label for="roomDifficulty">BOTS</label><select id="roomDifficulty"><option value="recruit">Rekrut</option><option value="veteran">Veteran</option><option value="ace">Ass</option></select></div>
+      </div>
+      <p id="lobbyHint" class="lobby-hint"></p>
+      <button id="startOnline" class="primary">GEFECHT STARTEN <span>↗</span></button>
+      <button id="leaveRoom" class="outline">RAUM VERLASSEN</button>
+    </div>
+    <p id="lobbyStatus" class="lobby-status" role="status"></p>
+    <p class="local-note">Leere Plätze füllen Bots. Jeder wählt seinen Panzer frei, auch doppelt.</p>
+  </div></section>
   <noscript>Bitte aktiviere JavaScript, um Iron Horizon zu spielen.</noscript>
 </body>
 </html>

@@ -32,7 +32,7 @@ Iron Horizon gehört zur privaten Swimming-Lions-Spielesammlung für Familie und
 | Eingabe | ✅ Maus und Tastatur mit Pointer-Lock · ✅ Touch mit Joystick und Knöpfen (Querformat) · 💡 Gamepad |
 | Hosting | ✅ Eigener kleiner Node-Server im Docker-Container auf Render (https://iron-horizon.onrender.com), gemeinsames Passwort, öffentliche Datenschutzseite, Eintrag in der Spielesammlung |
 | Daten | ✅ Alles bleibt im Browser (`localStorage`); Export und Import als JSON-Datei |
-| Spielerzahl | ✅ Einzelspieler gegen Bots · 💡 Online-Koop und Online-Gefechte |
+| Spielerzahl | ✅ Einzelspieler gegen Bots · ✅ Online-Gefechte bis 6 Spieler, aufgefüllt mit Bots (1.1) |
 | Ton | Bewusst keiner. Der synthetische Klang aus 0.6/0.7 wurde auf Wunsch vollständig entfernt. |
 | Stil | Stilisierte, gut erkennbare 3D-Fahrzeuge in einer fiktiven, an frühe Panzertechnik angelehnten Welt. Keine Nationen, keine echten Fahrzeugnamen, keine Forschungsbäume. |
 
@@ -85,7 +85,38 @@ Die Verteidiger-Bots halten den aktiven Punkt mit einem Wächter im Kreis und zw
 
 Testgelände auf der gewählten Karte: fünf stationäre Ziele, kein Gegenfeuer, kein Zeitlimit, keine Erfahrung. Hier lassen sich Fahrgefühl, Streuung, Abpraller und der Dachs gefahrlos ausprobieren.
 
-### 5.4 Einsätze 💡
+### 5.4 Online-Gefechte ✅ (1.1)
+
+| Punkt | Festlegung |
+| --- | --- |
+| Raum | „Online spielen“ in der Garage: Raum erstellen oder mit vierstelligem Code beitreten; der Einladungslink `…/iron-horizon/?raum=CODE` tritt direkt bei |
+| Spieler | 2 bis 6 Menschen, frei auf Blau und Rot verteilt (höchstens 3 je Team); leere Plätze füllen Bots |
+| Panzer | Jeder wählt seinen Panzer selbst, auch mehrfach im Team. Ein Bot fährt den Panzer seines Gegenübers im anderen Team, sonst wird ein Paar ausgelost |
+| Einstellungen | Der Gastgeber (wer den Raum erstellt) wählt Karte, Modus (Vorherrschaft, Durchbruch mit Blau oder Rot als Angreifer) und die Stärke aller Bots |
+| Plätze | Menschen sitzen zuerst auf der Mitte ihres Teams, dann links und rechts; so bleiben die Spiegelpaare 0↔5, 1↔3, 2↔4 fair |
+| Ablauf | Nach dem Gefecht geht es zurück in die Lobby; Erfahrung zählt wie offline |
+
+**Technik:**
+
+- Der Browser des Gastgebers rechnet Bots, Treffer, Module und den Punktestand.
+- Jeder Spieler steuert seinen eigenen Panzer im eigenen Browser, so reagiert das Fahren ohne Verzögerung.
+  - Mitspieler schicken 20-mal pro Sekunde ihre Lage an den Gastgeber und melden Schüsse und Rauch.
+  - Der Gastgeber schickt 15-mal pro Sekunde ein Lagebild an alle und meldet Schüsse, Treffer, Abpraller und Rauch sofort.
+- Der Server (`raeume.js`, WebSocket unter `/ws`, nur mit Zugangs-Cookie) verwaltet nur die Räume und reicht Nachrichten weiter.
+- Verlässt ein Mitspieler das Gefecht, übernimmt ein Bot. Verlässt der Gastgeber es, endet es für alle, und die Lobby öffnet sich wieder.
+- Pause hält online nichts an; die anderen spielen weiter.
+
+**Olympiade:** Die Disziplin Iron Horizon ist ein gemeinsames Online-Gefecht der Olympia-Gruppe (bis 6 Leute; bei mehr gibt es mehrere Gefechte, gewertet wird zusammen nach Punkten).
+
+- Das Ticket im Link führt direkt in den Raum der Gruppe; Name, Karte, Modus und Bot-Stärke kommen aus der Olympiade und sind fest.
+- Die Gruppe wird auf beide Teams verteilt, jeder wählt seinen Panzer frei (auch den Dachs, ohne Rang).
+- Sind alle da, startet das Gefecht nach 8 Sekunden von selbst; der Gastgeber kann auch früher starten. Es gibt genau ein Gefecht.
+- Am Ende meldet jeder Browser seine eigenen Werte; der Server rechnet die Punkte: Sieg des eigenen Teams 1000, Unentschieden 400, Abschuss 300, Treffer 50, Sekunde am Punkt 5, eigener Verlust −150.
+- Bricht das Gefecht ab, weil der Gastgeber geht, zählen die Werte bis dahin (ohne Siegpunkte).
+
+**Grenzen:** Browser drosseln Hintergrund-Tabs stark. Der Gastgeber muss seinen Tab deshalb im Vordergrund lassen; das Spiel sagt ihm das beim Start. 💡 Später: Gastgeberwechsel, wenn der Tab in den Hintergrund geht.
+
+### 5.5 Einsätze 💡
 
 Kurze Solo-Aufgaben mit festen Zielen, zum Beispiel „Konvoi abfangen“, „Stellung halten“ oder „Aufklärung“. Bis zu drei Sterne je Einsatz; Grundlage einer späteren Kampagne.
 
@@ -324,8 +355,8 @@ Keine Reparaturkosten, kein Teilnahmezwang, keine bezahlten Vorteile.
 ## 16. Mögliche Ausbaustufen 💡
 
 - **Kampagne:** fünf verbundene Einsätze mit bleibendem Fahrzeugzustand und Besatzungserfahrung.
-- **Online-Koop:** zwei bis drei Freunde gemeinsam gegen Bots, mit Raumcode wie bei Löwen-Kart und Weltreiche. Die Simulation läuft dann auf dem Server mit denselben Regeldateien.
-- **Online-Gefechte:** Spieler gegen Spieler, aufgefüllt mit Bots.
+- **Weitere Panzertypen**, danach weitere Schlachttypen.
+- **Gastgeberwechsel** im laufenden Online-Gefecht.
 - **Gamepad-Steuerung**, getrennte Touch-Empfindlichkeit, Linkshänder-Anordnung.
 - **Weitere Karten** mit Höhengelände (die Höhenfunktion ist allgemein angelegt).
 
@@ -337,7 +368,7 @@ Flugzeuge, Schiffe, mehrere Realismusmodi, große Forschungsbäume und zerstörb
 - **Ton:** keiner. Der Klang war nicht gut genug und wurde vollständig entfernt.
 - **Balance:** Regeln 1–3 sind erfüllt. Reine Teams bleiben ein Richtwert und zeigen den Charakter der Karten (Abschnitt 6).
 - **Gegnerstärke:** gilt nur für die Gegner; deine Verbündeten kämpfen immer wie Veteranen.
-- **Offen – Reihenfolge nach 1.0:** zuerst Online-Koop oder zuerst die Kampagne?
+- **Nach 1.0:** Online-Gefechte mit freier Panzerwahl und die Olympia-Disziplin als gemeinsames Gefecht (1.1), als Nächstes neue Panzertypen, später neue Schlachttypen.
 - **Offen – Name:** „Iron Horizon“ bleibt, oder ein deutscher Name wie bei den anderen Spielen der Sammlung (zum Beispiel „Stahlhorizont“)?
 
 ## 18. Spielekarte für die Sammlung
@@ -346,6 +377,6 @@ Flugzeuge, Schiffe, mehrere Realismusmodi, große Forschungsbäume und zerstörb
 
 **Beschreibung:** Panzergefecht in 3D: drei Karten, drei Panzer, Vorherrschaft oder Durchbruch gegen Bots – mit Deckung, Abprallern und Flanken. Mit Maus oder Touch.
 
-**Tags:** Einzelspieler · 3D · Panzer
+**Tags:** Einzelspieler · Online · 3D · Panzer
 
 **Status:** Version 1.0, passwortgeschützt auf Render und in der Sammlung eingetragen.
