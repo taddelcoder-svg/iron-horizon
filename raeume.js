@@ -16,6 +16,7 @@ const MAX = 6;
 const PLAETZE = { blue: [0, 1, 2], red: [5, 3, 4] };
 const PARTNER = [5, 3, 4, 1, 2, 0];
 const OLYMP_COUNTDOWN = 8000;
+const OLYMP_WARTEN = 90_000;   // fehlt jemand, startet das Olympia-Gefecht spätestens so lange nach dem Öffnen des Raums
 
 function raeume({ zufall = Math.random, olymp = null } = {}) {
   const liste = new Map(), olympRaeume = new Map();
@@ -58,13 +59,20 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
     verteilen(raum);
   }
   // Olympia-Raum: sind alle Erwarteten da, startet das Gefecht nach dem Countdown von selbst.
+  // Fehlt jemand, geht es spätestens OLYMP_WARTEN nach dem Öffnen des Raums los.
   function olympPruefen(raum) {
     const o = raum.olymp; if (!o || o.gestartet) return;
     const da = raum.members.map(m => m.olympId);
     olymp?.status(o.t, da, 'warten');
-    if (o.t.m.every(e => da.includes(e.s))) {
-      if (!o.uhr) { o.startBis = Date.now() + OLYMP_COUNTDOWN; o.uhr = setTimeout(() => { o.uhr = null; if (liste.get(raum.code) === raum) starten(raum); }, OLYMP_COUNTDOWN); o.uhr.unref?.(); verteilen(raum); }
-    } else if (o.uhr) { clearTimeout(o.uhr); o.uhr = null; o.startBis = 0; verteilen(raum); }
+    let ziel = 0;
+    if (raum.phase === 'lobby' && da.length) {
+      ziel = o.spaetestens;
+      if (o.t.m.every(e => da.includes(e.s))) ziel = Math.min(ziel, o.uhr && o.startBis < o.spaetestens ? o.startBis : Date.now() + OLYMP_COUNTDOWN);
+    }
+    if (ziel === o.startBis && (o.uhr || !ziel)) return;
+    clearTimeout(o.uhr); o.uhr = null; o.startBis = 0;
+    if (ziel) { o.startBis = ziel; o.uhr = setTimeout(() => { o.uhr = null; if (liste.get(raum.code) === raum) starten(raum); }, Math.max(0, ziel - Date.now())); o.uhr.unref?.(); }
+    verteilen(raum);
   }
   function olympBeitreten(m, d) {
     const t = olymp?.ticketPruefen(d.ticket);
@@ -73,7 +81,7 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
     let ziel = liste.get(olympRaeume.get(schluessel));
     if (!ziel) {
       const c = t.c || {};
-      ziel = { code: code(), host: m.id, phase: 'lobby', members: [], olymp: { t, gestartet: false, uhr: null, startBis: 0 },
+      ziel = { code: code(), host: m.id, phase: 'lobby', members: [], olymp: { t, gestartet: false, uhr: null, startBis: 0, spaetestens: Date.now() + OLYMP_WARTEN },
         settings: { map: KARTEN.includes(c.karte) ? c.karte : 'border', mission: MODI.includes(c.modus) ? c.modus : 'domination', difficulty: STUFEN.includes(c.bots) ? c.bots : 'veteran' } };
       liste.set(ziel.code, ziel); olympRaeume.set(schluessel, ziel.code);
     }

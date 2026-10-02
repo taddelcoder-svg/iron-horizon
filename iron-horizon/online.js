@@ -49,7 +49,11 @@
     if (olymp) {
       $('olympExpected').replaceChildren(...olymp.expected.map(e => { const item = document.createElement('li'); item.className = e.here ? 'here' : ''; item.textContent = `${e.here ? '✓' : '…'} ${e.name}`; return item; }));
       if (olymp.startIn != null && room.phase === 'lobby') {
-        const until = Date.now() + olymp.startIn; tick = () => { $('lobbyHint').textContent = `Alle da – das Gefecht startet in ${Math.max(0, Math.ceil((until - Date.now()) / 1000))} Sekunden.`; };
+        const until = Date.now() + olymp.startIn, fehlt = olymp.expected.filter(e => !e.here).length;
+        tick = () => {
+          const sek = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+          $('lobbyHint').textContent = fehlt ? `Warte auf ${fehlt} Mitspieler – spätestens in ${sek} Sekunden geht es los.` : `Alle da – das Gefecht startet in ${sek} Sekunden.`;
+        };
         countdown = setInterval(tick, 250);
       }
     }
