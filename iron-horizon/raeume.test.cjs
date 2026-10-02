@@ -47,8 +47,25 @@ test('in battle: inputs go to the host, snapshots to the others; leaving is hand
   a.send({ t: 'snap', v: [1] }); assert.deepEqual(b.last('snap'), { t: 'snap', v: [1] }); assert.equal(a.last('snap'), undefined);
   b.send({ t: 'snap', v: [2] }); assert.deepEqual(c.last('snap'), { t: 'snap', v: [1] }, 'only the host may send snapshots');
   c.getrennt(); assert.deepEqual(a.last('left'), { t: 'left', id: c.mitglied.id });
-  a.getrennt(); assert.match(b.last('closed').text, /Gastgeber/); assert.equal(b.last('room').host, b.mitglied.id); assert.equal(b.last('room').phase, 'lobby');
+  // The host leaves: B takes over the running battle and turns A's tank into a bot
+  a.getrennt(); assert.deepEqual(b.last('host'), { t: 'host', id: b.mitglied.id, left: a.mitglied.id });
+  assert.equal(b.last('room').host, b.mitglied.id); assert.equal(b.last('room').phase, 'battle');
   b.getrennt(); assert.equal(r.liste.size, 0);
+});
+
+test('a host whose tab is hidden hands the battle to a visible player', async () => {
+  const r = raeume(), a = client(r), b = client(r), c = client(r);
+  a.send({ t: 'create', name: 'A' }); const code = a.last('room').code;
+  b.send({ t: 'join', code, name: 'B' }); c.send({ t: 'join', code, name: 'C' });
+  b.send({ t: 'sicht', v: false }); a.send({ t: 'start' });
+  a.send({ t: 'sicht', v: false }); a.send({ t: 'sicht', v: true });
+  await new Promise(ok => setTimeout(ok, 2200));
+  assert.equal(c.last('host'), undefined, 'a short switch away changes nothing');
+  a.send({ t: 'sicht', v: false });
+  await new Promise(ok => setTimeout(ok, 2200));
+  assert.deepEqual(c.last('host'), { t: 'host', id: c.mitglied.id, left: null }, 'the hidden B is skipped');
+  c.send({ t: 'snap', v: [3] }); assert.deepEqual(a.last('snap'), { t: 'snap', v: [3] });
+  a.send({ t: 'in', x: 2 }); assert.deepEqual(c.last('in'), { t: 'in', x: 2, from: a.mitglied.id });
 });
 
 test('the host ends the battle and the room returns to the lobby', () => {
@@ -67,10 +84,10 @@ test('Olympiade: a group meets in one room, settings come from the ticket, all p
   client(r).send({ t: 'olymp', ticket: 'bad' });
   a.send({ t: 'olymp', ticket: 'A', vehicle: 'dachs' });
   let room = a.last('room'); assert.deepEqual(room.settings, { map: 'valley', mission: 'domination', difficulty: 'ace' });
-  assert.deepEqual(room.olymp.expected, [{ name: 'A', here: true }, { name: 'B', here: false }]); assert.equal(room.olymp.startIn, null);
+  assert.deepEqual(room.olymp.expected, [{ name: 'A', here: true }, { name: 'B', here: false }]); assert.ok(room.olymp.startIn > 80_000, 'a missing player is waited for at most 90 s');
   a.send({ t: 'settings', map: 'border' }); assert.equal(a.last('room').settings.map, 'valley', 'ticket settings are fixed');
   b.send({ t: 'olymp', ticket: 'B' }); room = b.last('room');
-  assert.equal(room.code, a.last('room').code); assert.equal(room.members.find(m => m.name === 'B').team, 'red'); assert.ok(room.olymp.startIn > 0);
+  assert.equal(room.code, a.last('room').code); assert.equal(room.members.find(m => m.name === 'B').team, 'red'); assert.ok(room.olymp.startIn > 0 && room.olymp.startIn <= 8000);
   again.send({ t: 'olymp', ticket: 'B' }); assert.equal(again.last('room').members.length, 2, 'a reload replaces the old connection');
   a.send({ t: 'start' }); const start = again.last('start'); assert.ok(start);
   assert.equal(start.slots.find(s => s.human === a.mitglied.id).vehicle, 'dachs');

@@ -16,6 +16,7 @@ const MAX = 6;
 const PLAETZE = { blue: [0, 1, 2], red: [5, 3, 4] };
 const PARTNER = [5, 3, 4, 1, 2, 0];
 const OLYMP_COUNTDOWN = 8000;
+const HOST_VERSTECKT_MS = 2000;   // so lange darf der Tab des Gastgebers im Hintergrund sein, dann übernimmt jemand anderes
 const OLYMP_WARTEN = 90_000;   // fehlt jemand, startet das Olympia-Gefecht spätestens so lange nach dem Öffnen des Raums
 
 function raeume({ zufall = Math.random, olymp = null } = {}) {
@@ -56,7 +57,7 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
     if (raum.olymp) { raum.olymp.gestartet = true; clearTimeout(raum.olymp.uhr); raum.olymp.uhr = null; raum.olymp.startBis = 0; olymp?.status(raum.olymp.t, raum.members.map(m => m.olympId).filter(Boolean), 'laeuft'); }
     const start = { t: 'start', slots: aufstellung(raum), settings: raum.settings, seed: raum.seed, host: raum.host };
     for (const x of raum.members) senden(x, { ...start, you: x.id });
-    verteilen(raum);
+    verteilen(raum); hostPruefen(raum);
   }
   // Olympia-Raum: sind alle Erwarteten da, startet das Gefecht nach dem Countdown von selbst.
   // Fehlt jemand, geht es spätestens OLYMP_WARTEN nach dem Öffnen des Raums los.
@@ -97,6 +98,26 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
     ziel.members.push(m); m.raum = ziel; verteilen(ziel); olympPruefen(ziel);
   }
 
+  // Gastgeber-Wechsel: Der Browser des Gastgebers rechnet Bots, Treffer und Punkte. Ist sein Tab
+  // im Hintergrund (Handy weggelegt) oder ist er weg, übernimmt ein anderer mit dem letzten Lagebild.
+  const sichtbar = (raum, ausser) => raum.members.find(x => x !== ausser && !x.versteckt);
+  function hostWechseln(raum, neu, weg) {
+    raum.host = neu.id;
+    for (const x of raum.members) senden(x, { t: 'host', id: neu.id, left: weg ? weg.id : null });
+  }
+  function hostPruefen(raum) {
+    const host = raum.members.find(x => x.id === raum.host);
+    if (raum.phase !== 'battle' || !host || !host.versteckt) { clearTimeout(raum.hostUhr); raum.hostUhr = null; return; }
+    if (raum.hostUhr) return;
+    raum.hostUhr = setTimeout(() => {
+      raum.hostUhr = null;
+      const alt = raum.members.find(x => x.id === raum.host), neu = alt && sichtbar(raum, alt);
+      if (liste.get(raum.code) !== raum || raum.phase !== 'battle' || !alt?.versteckt || !neu) return;
+      hostWechseln(raum, neu, null); verteilen(raum);
+    }, HOST_VERSTECKT_MS);
+    raum.hostUhr.unref?.();
+  }
+
   function verlassen(m) {
     const raum = m.raum; if (!raum) return;
     raum.members = raum.members.filter(x => x !== m); m.raum = null;
@@ -107,11 +128,9 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
     }
     olympPruefen(raum);
     if (raum.host === m.id) {
-      raum.host = raum.members[0].id;
-      if (raum.phase === 'battle') {
-        raum.phase = 'lobby';
-        for (const x of raum.members) senden(x, { t: 'closed', text: 'Der Gastgeber hat das Gefecht verlassen.' });
-      }
+      const neu = sichtbar(raum) || raum.members[0];
+      if (raum.phase === 'battle') hostWechseln(raum, neu, m);
+      else raum.host = neu.id;
     } else if (raum.phase === 'battle') {
       const host = raum.members.find(x => x.id === raum.host); if (host) senden(host, { t: 'left', id: m.id });
     }
@@ -145,6 +164,7 @@ function raeume({ zufall = Math.random, olymp = null } = {}) {
         }
         case 'olymp': olympBeitreten(m, d); return;
         case 'leave': verlassen(m); senden(m, { t: 'room', code: null }); return;
+        case 'sicht': m.versteckt = d.v === false; if (raum) hostPruefen(raum); return;
       }
       if (!raum) return;
       if (raum.phase === 'lobby') {

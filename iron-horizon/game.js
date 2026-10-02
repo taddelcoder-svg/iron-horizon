@@ -1481,10 +1481,10 @@
     const me = start.slots.find(seat => seat.human === start.you); if (!me || !careerStore) return;
     if (!net) Object.assign(settingsBeforeOnline, { selectedMap, mission, difficulty, selectedVehicle });
     if (olympia) { try { localStorage.setItem(olympia.versuchKey, '1'); } catch (_) {} }
-    net = { host: start.host === start.you, slot: me.slot, seats: start.slots, sendTime: 0, snapTime: 0, seeTime: 0 };
+    net = { host: start.host === start.you, me: start.you, slot: me.slot, seats: start.slots, sendTime: 0, snapTime: 0, seeTime: 0 };
     ({ map: selectedMap, mission, difficulty } = start.settings); selectedVehicle = me.vehicle; seed = start.seed >>> 0 || 1;
     IronOnline.hide(); $('careerPanel').hidden = true; gameType = 'battle'; reset(); play();
-    $('resetButton').hidden = true;
+    $('resetButton').hidden = true; sichtMelden();
     notify(`${objectiveTitle()} · ${player.team === 'blue' ? 'Blau' : 'Rot'} ist dein Team${net.host ? '\nDu bist Gastgeber: Lass diesen Tab vorne.' : ''}`, 6); showTutorial(false);
   }
   function endOnline() {
@@ -1511,12 +1511,31 @@
     }
     leaveOnlineBattle(d.text);
   });
-  IronOnline.on('left', d => {
-    const vehicle = targets.find(target => target.remote === d.id); if (!vehicle) return;
-    vehicle.remote = null; vehicle.netState = null; vehicle.callsign += ' (BOT)'; vehicle.label.classList.remove('human');
-    Object.assign(vehicle, freshTactics(vehicle), { path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1 });
+  const botWerden = vehicle => Object.assign(vehicle, freshTactics(vehicle), { netState: null, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1 });
+  function playerLeft(id) {
+    const vehicle = targets.find(target => target.remote === id); if (!vehicle) return;
+    vehicle.remote = null; vehicle.callsign += ' (BOT)'; vehicle.label.classList.remove('human'); botWerden(vehicle);
     notify(`${vehicle.callsign.replace(' (BOT)', '')} HAT DAS GEFECHT VERLASSEN · EIN BOT ÜBERNIMMT`, 3);
+  }
+  IronOnline.on('left', d => playerLeft(d.id));
+  // Gastgeber-Wechsel mitten im Gefecht: Wer übernimmt, rechnet ab dem letzten Lagebild weiter (Bots,
+  // Treffer, Punkte); wer abgibt (sein Tab war im Hintergrund), wird zum normalen Mitspieler.
+  IronOnline.on('host', d => {
+    if (!net || mode === 'menu' || mode === 'result') return;
+    const ich = d.id === net.me;
+    if (ich && !net.host) {
+      net.host = true; net.snapTime = 0;
+      for (const target of targets) if (!target.remote) botWerden(target);
+      notify('DER GASTGEBER IST WEG · DEIN BROWSER RECHNET JETZT DAS GEFECHT\nLass diesen Tab vorne.', 5);
+    } else if (!ich && net.host) {
+      net.host = false; net.sendTime = 0;
+      for (const target of targets) if (!target.remote) target.netState = null;
+      notify('EIN MITSPIELER HAT DAS GEFECHT ÜBERNOMMEN', 3);
+    }
+    if (d.left != null) playerLeft(d.left);
   });
+  const sichtMelden = () => { if (net) IronOnline.send({ t: 'sicht', v: !document.hidden }); };
+  document.addEventListener('visibilitychange', sichtMelden);
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   window.addEventListener('resize', resize);
   $('world').addEventListener('webglcontextlost', event => { event.preventDefault(); pause(); $('pause').hidden = true; $('menu').hidden = false; $('hud').hidden = true; fail('Die Grafikverbindung wurde unterbrochen. Bitte lade die Seite neu.'); });

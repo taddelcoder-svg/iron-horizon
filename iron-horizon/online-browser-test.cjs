@@ -61,13 +61,30 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.ok(mismatches.length <= 1, `hp differs for slots ${mismatches} (a hit may be in flight)`);
     assert.ok(Math.abs(g.match.tickets.blue - h.match.tickets.blue) <= 1 && Math.abs(g.match.tickets.red - h.match.tickets.red) <= 1, 'tickets in sync'); assert.equal(g.match.owner, h.match.owner);
     console.log('after first losses:', JSON.stringify({ tickets: h.match.tickets, guestStats: g.stats, hostStats: h.stats }));
-    // The host leaves: the guest is sent back to the lobby.
-    await host.keyboard.press('Escape'); await host.waitForFunction(() => window.ironHorizon.getState().mode === 'paused');
-    await host.locator('#garageButton').click();
-    await guest.waitForFunction(() => window.ironHorizon.getState().mode === 'menu' && !document.getElementById('lobby').hidden, null, { timeout: 5000 });
-    assert.match(await guest.locator('#lobbyStatus').textContent(), /Gastgeber/);
-    assert.equal((await state(guest)).online, null);
+    // The host's tab goes to the background (phone put away): after 2 s the guest takes over the battle.
+    const hide = (page, hidden) => page.evaluate(h => { Object.defineProperty(document, 'hidden', { value: h, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); }, hidden);
+    await hide(host, true);
+    await guest.waitForFunction(() => window.ironHorizon.getState().online.host, null, { timeout: 5000 });
+    await host.waitForFunction(() => !window.ironHorizon.getState().online.host, null, { timeout: 5000 });
+    const before = await state(guest), clock = before.match.time, bots = st => st.targets.filter(t => !t.remote);
+    await wait(4000);
+    g = await state(guest); h = await state(host);
+    assert.ok(Math.abs(g.match.time - clock) > 2, 'the new host keeps the clock running');
+    const moved = bots(g).filter(b => { const a = bots(before).find(x => x.slot === b.slot); return Math.hypot(b.x - a.x, b.z - a.z) > 1; });
+    console.log('bots after takeover:', JSON.stringify(bots(g).map(b => ({ slot: b.slot, alive: b.alive, path: b.pathLength, kind: b.kind, x: Math.round(b.x), z: Math.round(b.z) }))));
+    // Bots on the capture point stand still on purpose; at least one must move and all must have an objective
+    assert.ok(moved.length >= 1 && bots(g).every(b => !b.alive || b.kind), `the new host drives the bots (${moved.length} moved)`);
+    assert.ok(Math.abs(g.match.time - h.match.time) < 2, 'the old host now follows the new one');
+    const annaOnBen = g.targets.find(t => t.slot === 0); assert.ok(annaOnBen.remote, 'Anna stays a human player');
+    await hide(host, false);
+    // The new host leaves: Anna takes over again and Ben's tank becomes a bot.
+    await guest.keyboard.press('Escape'); await guest.waitForFunction(() => window.ironHorizon.getState().mode === 'paused');
+    await guest.locator('#garageButton').click();
+    await host.waitForFunction(() => window.ironHorizon.getState().online?.host, null, { timeout: 5000 });
+    h = await state(host);
+    assert.equal(h.targets.find(t => t.slot === 5).remote, null, "Ben's tank is a bot now");
+    assert.ok(['playing', 'locking', 'paused'].includes(h.mode), 'the battle goes on');
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ status: 'PASS', checks: ['create and invite link', 'free team and vehicle choice', 'host settings', 'start with slots', 'guest movement to host', 'host bots to guest', 'clock sync', 'host leaves'] }));
+    console.log(JSON.stringify({ status: 'PASS', checks: ['create and invite link', 'free team and vehicle choice', 'host settings', 'start with slots', 'guest movement to host', 'host bots to guest', 'clock sync', 'hidden host hands over', 'host leaves, guest takes over'] }));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
