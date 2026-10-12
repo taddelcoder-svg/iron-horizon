@@ -1,0 +1,323 @@
+/* Design-Upgrade 1.4: einheitliche Gestaltung (Farb-Tokens, Glas-Karten, Buttons, HUD-Chips, Ergebnis).
+   Wird als letztes Stylesheet geladen und überschreibt nur Optik – keine Spiellogik, keine IDs/Klassen entfernt. */
+:root{
+  --fl:#101a15;            /* Fläche (Hintergrund) */
+  --karte:#1a2a21;         /* Karte/Panel */
+  --karte-2:#223529;       /* Karte, angehoben */
+  --glas:#121d17cc;        /* halbtransparenter HUD-Grund */
+  --text:#f5f0df;
+  --text-weich:#c3cbb9;    /* >= 7:1 auf --karte */
+  --akzent:#ef9c51;
+  --akzent-2:#94c6db;      /* Team Blau / sekundär */
+  --erfolg:#a9d097;
+  --warnung:#f0c866;
+  --gefahr:#f2a084;
+  --rand:#ffffff26;
+  --rand-stark:#ffffff45;
+  --r-s:10px;--r-m:14px;--r-l:18px;
+  --schatten-1:0 1px 2px #0006,0 4px 10px #0004;
+  --schatten-2:0 2px 4px #0006,0 10px 24px #0005,0 24px 56px #0004;
+  --schrift:Bricolage,'Segoe UI',Arial,sans-serif;
+  --orange:var(--akzent);
+}
+@keyframes ih-ein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ih-fade{from{opacity:0}to{opacity:1}}
+@keyframes ih-pop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+
+/* Schrift: Bricolage statt Monospace für alle Beschriftungen, Zahlen tabellarisch */
+body .eyebrow,body .location,body .number,body .outline,body .menu-foot,body .bottom-caption,body .stats small,body .stats div>span,
+body .map-picker label,body .picker-note,body .vehicle-picker b,body #score,body #driveStatus,body .module-status span,body .match-hud small,
+body .match-hud strong,body .compass,body .reticle b,body .telemetry div>span,body .telemetry>span:last-child,body .ammo>b,body .equipment,
+body .map>span,body .notice,body .controls kbd,body .respawn span,body .respawn small,body .vehicle-label,body .career-stats span,
+body .career-button,body .career-button small,body .career-heading>span:last-child,body .career-awards b,body .career-paints small,
+body .result-stats span,body .earned-xp>span,body .lobby-field,body .room-code span,body .room-code b,body .teams h3,body .teams li.bot,
+body .olymp-card small,body .fps,body .t-btn,body .stick-base span,body .vehicle-card>p,body .objective>span:last-child,body .teams li,
+body .rotate-hint{font-family:var(--schrift)}
+body .stats b,body .telemetry strong,body .match-hud>b,body .match-hud strong,body #matchTime,body #speed,body .career-stats b,body .result-stats b,
+body .room-code b,body #score,body .ammo>b,body .equipment b,body #smokeCount,body .earned-xp strong,body .olymp-result strong,body .respawn i,
+body .t-smoke b,body #vehicleIndex,body #range,body #bearing{font-variant-numeric:tabular-nums}
+body{background:var(--fl);color:var(--text)}
+body .eyebrow{font-size:11px;letter-spacing:1.6px;font-weight:600;text-transform:uppercase;color:var(--text-weich)}
+body .eyebrow>span:empty{background:var(--akzent);height:2px;border-radius:2px}
+
+/* Buttons: Primär / Sekundär / Gefahr */
+body .primary{border-radius:var(--r-m);min-height:56px;padding:0 22px;font-size:13px;letter-spacing:1.4px;
+  background:linear-gradient(180deg,#ffb36d,var(--akzent));color:#1b1810;box-shadow:0 1px 0 #ffffff55 inset,0 6px 18px #ef9c5140,var(--schatten-1);
+  transition:transform .12s,box-shadow .2s,filter .2s,background .2s}
+body .primary:hover{background:linear-gradient(180deg,#ffc58a,#f4a964);box-shadow:0 1px 0 #ffffff66 inset,0 8px 24px #ef9c5160,var(--schatten-1)}
+body .primary:active{transform:translateY(1px) scale(.992);filter:brightness(.94);box-shadow:0 1px 0 #ffffff33 inset,0 2px 6px #0006}
+body .primary:disabled{filter:grayscale(.4)}
+body .outline{min-height:44px;border-radius:var(--r-s);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+  background:#ffffff0f;border:1px solid var(--rand-stark);color:var(--text);transition:transform .12s,background .2s,border-color .2s}
+body .outline:hover{background:#ffffff1c;border-color:#ffffff80}
+body .outline:active{transform:translateY(1px) scale(.99);background:#ffffff26}
+body .outline.danger,body .gefahr{border-color:#f2a08488;color:var(--gefahr);background:#f2a0841a}
+body button:focus-visible,body a:focus-visible,body input:focus-visible,body select:focus-visible,body [tabindex]:focus-visible{outline:2px solid #ffd2a1;outline-offset:3px;box-shadow:0 0 0 5px #ef9c5140}
+body .training-link{min-height:44px;display:flex;align-items:center;font-size:12px;line-height:1.25;font-weight:600;border:1px solid var(--rand);border-radius:var(--r-s);padding:0 14px;
+  background:#ffffff0a;color:var(--text);transition:transform .12s,background .2s,border-color .2s}
+body .training-link:hover{background:#ffffff18;border-color:var(--akzent);color:var(--text)}
+body .training-link:active{transform:translateY(1px)}
+body .online-link{color:var(--akzent)!important;border-color:#ef9c5166}
+body .menu-links{gap:10px}
+
+/* Kopfleiste */
+body .topbar{background:linear-gradient(#0c1410a6,transparent);padding-left:max(4%,env(safe-area-inset-left));padding-right:max(4%,env(safe-area-inset-right))}
+body .brand{font-weight:800}
+body .brand-icon{background:linear-gradient(180deg,#ef9c5133,#ef9c5108);border-color:#ef9c5199;color:var(--akzent)}
+body .brand small{opacity:.75;color:var(--text-weich)}
+body .location{font-size:12px;letter-spacing:1.6px;font-weight:600;padding:8px 14px;border:1px solid var(--rand);border-radius:99px;background:#0e1712a6}
+body .career-button{border-radius:var(--r-m);padding:10px 16px;min-height:44px;background:var(--glas);border:1px solid var(--rand-stark);box-shadow:var(--schatten-1);
+  font-size:12px;font-weight:700;color:#ffd9ab;transition:transform .12s,border-color .2s,background .2s}
+body .career-button small{font-size:10px;font-weight:500;color:var(--text-weich);letter-spacing:.8px}
+body .career-button:hover{border-color:var(--akzent);background:#1a2a21e6}
+body .career-button:active{transform:translateY(1px)}
+body #pauseButton{min-height:44px;background:var(--glas);border-radius:var(--r-s)}
+
+/* Startmenü */
+body .intro{animation:ih-ein .35s ease-out both;scrollbar-color:#ffffff40 transparent}
+body h1{letter-spacing:-.045em;text-shadow:0 4px 30px #0008}
+body h1 em{background:linear-gradient(90deg,#ffb36d,#ef9c51 60%,#f5c58e);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+body .mission{border-top:0;padding:14px 16px;margin:16px 0;max-width:370px;border:1px solid var(--rand);border-radius:var(--r-m);background:var(--glas);box-shadow:var(--schatten-1)}
+body .mission .number{font-size:13px;font-weight:800;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:#ef9c5126;padding:0;flex:none}
+body .mission b{font-size:14px}
+body .mission p{font-size:12px;color:var(--text-weich)}
+body .map-picker label{font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--text-weich)}
+body .map-picker label span{color:var(--akzent)}
+body .map-picker select,body .panel select{min-height:44px;border-radius:var(--r-s);background-color:#142019;border:1px solid var(--rand-stark);color:var(--text);font:600 14px/1.2 var(--schrift);transition:border-color .2s,background .2s}
+body .map-picker select:hover,body .panel select:hover{border-color:#ffffff80}
+body .map-picker p,body .picker-note{font-size:12px;color:var(--text-weich)}
+body .vehicle-picker button{border-radius:var(--r-m);min-height:56px;background:#142019cc;border:1px solid var(--rand);color:var(--text);transition:transform .12s,border-color .2s,background .2s}
+body .vehicle-picker button:hover{border-color:#ffffff70;background:#1c2d23e6}
+body .vehicle-picker button:active{transform:translateY(1px) scale(.99)}
+body .vehicle-picker button[aria-pressed="true"],body .vehicle-picker button.on,body .vehicle-picker button.active{border-color:var(--akzent);background:linear-gradient(180deg,#ef9c5130,#ef9c5114);color:#ffd9ab;box-shadow:0 0 0 1px var(--akzent) inset,0 4px 14px #ef9c5126}
+body .vehicle-picker b{font-size:12px;font-weight:800;letter-spacing:.8px}
+body .vehicle-picker span{font-size:11px;color:var(--text-weich)}
+body .vehicle-picker.five b{font-size:11px;letter-spacing:.3px}
+body .vehicle-picker.five span{font-size:10px}
+body .vehicle-picker.five button{padding-left:5px;padding-right:5px}
+body .lobby-vehicles b{font-size:11px}
+body .lobby-vehicles span{font-size:10px}
+body .menu-foot{font-size:11px;letter-spacing:1px;color:var(--text-weich)}
+body .menu-foot a{color:var(--text);min-height:24px}
+body .bottom-caption{font-size:11px;letter-spacing:1.2px;color:var(--text-weich);border-top:1px solid var(--rand)}
+body #error{border-radius:var(--r-s);border:1px solid #f2a08466;background:#2a1b17;color:#ffc9b0}
+body .olymp-card{border-radius:var(--r-m);border:1px solid #ef9c5199;background:linear-gradient(180deg,#ef9c5120,#15201ae6);box-shadow:var(--schatten-1);font-size:12px;color:var(--text)}
+body .olymp-card small{font-size:10px;color:var(--text-weich)}
+
+/* Fahrzeugkarte (Glas) */
+body .vehicle-card{border-radius:var(--r-l);border:1px solid var(--rand-stark);background:linear-gradient(180deg,#1a2a21d9,#121d17e6);box-shadow:var(--schatten-2),0 1px 0 #ffffff1a inset;animation:ih-pop .4s .1s ease-out both}
+body .vehicle-card h2{letter-spacing:-.03em}
+body .vehicle-card h2 span{color:var(--text-weich)}
+body .vehicle-card>p{font-size:11px;letter-spacing:1.4px;color:var(--text-weich);font-weight:600}
+body .stats{border-bottom-color:var(--rand)}
+body .stats b{font-weight:700}
+body .stats small{font-size:10px;color:var(--text-weich)}
+body .stats div>span{font-size:10px;font-weight:600;color:var(--text-weich)}
+body .vehicle-note{font-size:12px;color:var(--text-weich)}
+body .paint-swatches button{height:32px;border-radius:8px;border:2px solid #ffffff30;min-width:32px;transition:transform .12s,border-color .2s}
+body .paint-swatches button:hover:not(:disabled){transform:translateY(-1px)}
+body .paint-swatches button[aria-pressed="true"]{outline-offset:3px;border-color:#fff}
+
+/* Dialoge (Pause, Ergebnis, Profil, Lobby) */
+body .modal{background:radial-gradient(120% 90% at 50% 40%,#0a120e99,#060b09d9);backdrop-filter:blur(8px);animation:ih-ein .2s ease-out both;
+  padding:max(20px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+body .panel{border-radius:20px;border:1px solid var(--rand-stark);background:linear-gradient(180deg,#203227,#18261e);box-shadow:var(--schatten-2),0 1px 0 #ffffff1f inset;animation:ih-pop .25s ease-out both}
+body .panel h2{letter-spacing:-.03em;margin:12px 0}
+body .panel p{color:var(--text-weich);font-size:14px;line-height:1.55}
+body .panel label{font-size:14px;min-height:44px}
+body .panel input[type=checkbox]{width:22px;height:22px;flex:none}
+body .panel input[type=range]{min-width:130px}
+body .panel a{color:var(--text-weich);font-size:12px;text-decoration:underline;text-underline-offset:3px;min-height:24px}
+body .panel .primary{margin-top:24px}
+body .panel .outline{margin-top:10px}
+body .panel .browser-link{border-radius:var(--r-s)}
+body .career-heading .outline{width:44px;padding:0;margin:0;font-size:15px}
+body .lobby-panel input:not([type]),body .lobby-panel #roomCode{min-height:48px;border-radius:var(--r-s);background:#142019;border:1px solid var(--rand-stark);color:var(--text);font:600 15px var(--schrift)}
+body .lobby-field{font-size:11px!important;font-weight:600;letter-spacing:1.4px;color:var(--text-weich)}
+body .join-row .outline{padding:0 20px}
+body .room-code{padding:12px 16px;border:1px solid var(--rand);border-radius:var(--r-m);background:#0e1812a6}
+body .room-code span{font-size:11px;font-weight:600;color:var(--text-weich)}
+body .room-code b{font-size:32px;font-weight:800}
+body .teams>div{padding:12px;border:1px solid var(--rand);border-radius:var(--r-m);background:#0e1812a6}
+body .teams h3{font-size:12px;font-weight:800}
+body .teams li{border-radius:var(--r-s);background:#ffffff0a;border-color:var(--rand);font-size:13px}
+body .teams li.me{border-color:var(--akzent);background:#ef9c5118}
+body .teams li.bot{opacity:.6;font-size:12px}
+body .teams .outline{width:100%;margin-top:6px!important;padding:0 8px}
+body .lobby-olymp li{border-radius:99px;background:#ffffff0a}
+body .lobby-olymp li.here{border-color:var(--erfolg);color:var(--erfolg)}
+body .lobby-hint{font-size:13px!important}
+body .lobby-status{color:var(--warnung)!important}
+body .lobby-status.bad{color:var(--gefahr)!important}
+
+/* Profil */
+body .career-stats{border-block-color:var(--rand);gap:12px}
+body .career-stats span{font-size:11px;font-weight:600;color:var(--text-weich);padding:12px;border-radius:var(--r-m);background:#0e1812a6;border:1px solid var(--rand)}
+body .career-stats b{font-size:26px;font-weight:700;color:var(--text)}
+body .career-progress,body .reload-track,body #captureTrack,body .health-track,body .repair-track{border-radius:99px;overflow:hidden;background:#ffffff1f;box-shadow:0 1px 2px #0006 inset}
+body .career-progress{height:8px}
+body .career-progress i{border-radius:99px;background:linear-gradient(90deg,#d9822f,#ffb36d);transition:width .4s ease-out}
+body .career-heading h3{font-size:18px}
+body .career-heading>span:last-child{font-size:12px;font-weight:700;color:var(--akzent)}
+body .career-paints button{border-radius:var(--r-m);background:#0e1812cc;border-color:var(--rand);padding:10px;font:600 12px var(--schrift);transition:transform .12s,border-color .2s}
+body .career-paints button:hover:not(:disabled){border-color:#ffffff70;transform:translateY(-1px)}
+body .career-paints button[aria-pressed="true"]{border-color:var(--akzent);box-shadow:0 0 0 1px var(--akzent) inset}
+body .career-paints i{border-radius:8px}
+body .career-paints small{font-size:10px;color:var(--text-weich)}
+body .career-awards li{border-radius:var(--r-m);background:#0e1812cc;opacity:.62;padding:12px}
+body .career-awards li.earned{background:linear-gradient(180deg,#ef9c5126,#ef9c5110);border-color:var(--akzent);opacity:1}
+body .career-awards b{font-size:12px;font-weight:700;color:var(--text)}
+body .career-awards span{font-size:11px;color:var(--text-weich)}
+body .import-preview{border-radius:var(--r-m);background:#ffffff0c}
+body #careerStatus{color:var(--warnung)}
+body .career-panel .cosmetic-note,body .career-panel .local-note{font-size:12px}
+
+/* Ergebnis: Auswertung mit hervorgehobenen Zahlen */
+body #result .panel{width:480px;position:relative;overflow:hidden}
+body #result .panel:before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,#d9822f,#ffb36d,#d9822f)}
+body #resultTitle{font-size:clamp(42px,9vw,60px);line-height:1;margin:10px 0 8px;letter-spacing:-.04em;
+  background:linear-gradient(180deg,#fff2d9,#ffb36d);-webkit-background-clip:text;background-clip:text;color:transparent}
+body .result-stats{gap:10px;margin:18px 0;padding:0;border:0}
+body .result-stats span{padding:12px 14px;border-radius:var(--r-m);background:#0e1812b3;border:1px solid var(--rand);font-size:11px;font-weight:600;letter-spacing:.9px;color:var(--text-weich)}
+body .result-stats b{font-size:32px;font-weight:700;margin-top:4px;color:var(--text)}
+body .key-moment{border-radius:var(--r-m);border:1px solid var(--rand);border-left:3px solid var(--akzent);background:#ffffff0a}
+body .key-moment p{font-size:14px}
+body .earned-xp{border-top:0;padding:14px 16px;border-radius:var(--r-m);background:linear-gradient(180deg,#ef9c5120,#ef9c5108);border:1px solid #ef9c5155}
+body .earned-xp strong{font-size:28px;font-weight:800;letter-spacing:-.02em}
+body .earned-xp p{font-size:12px}
+body .earned-xp #unlockNotice{color:var(--erfolg)}
+body .earned-xp>span{font-size:11px;color:var(--text-weich)}
+body .olymp-result{border-top:0;padding:14px 16px;border-radius:var(--r-m);background:#ffffff0a;border:1px solid var(--rand)}
+body .olymp-result strong{font-size:28px;font-weight:800}
+body #rematchButton{margin-top:20px}
+
+/* HUD: Chips mit Glas-Grund (Blur nur auf kleinen Flächen) */
+body .objective,body .telemetry,body .ammo,body .equipment,body .map,body .match-hud,body .tutorial,body .respawn{
+  border-radius:var(--r-m);background:var(--glas);border:1px solid var(--rand);box-shadow:var(--schatten-1),0 1px 0 #ffffff14 inset;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+body .objective{border-left:3px solid var(--akzent);padding:14px 18px;gap:8px;max-width:300px}
+body .objective b{font-size:16px}
+body .objective .eyebrow{font-size:10px}
+body #score,body .objective>span:last-child{font-size:12px;font-weight:700;letter-spacing:.8px;color:#ffc58a}
+body #captureTrack{height:6px;margin-top:4px}
+body #captureBar{border-radius:99px;box-shadow:0 0 8px #ffffff55;transition:width .2s linear}
+body .match-hud{padding:10px 20px;gap:22px;border-radius:99px}
+body .match-hud>b{font:800 28px/1 var(--schrift);color:var(--akzent-2)}
+body .match-hud>b:last-child{color:var(--gefahr)}
+body .match-hud small{font-size:10px;font-weight:700;letter-spacing:1.6px;color:var(--text-weich)}
+body .match-hud strong{font-size:19px;font-weight:700;margin-top:3px}
+body .compass{font-size:12px;font-weight:700;letter-spacing:.6px;gap:26px;padding:7px 18px;border-radius:99px;background:#0e1712a6;border:1px solid var(--rand)}
+body .compass span{opacity:.75}
+body .compass b{border-top:0;padding-top:0;margin-top:0;color:#ffc58a}
+body .reticle b{font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:#0e1712a6;text-shadow:none;top:54px}
+body .notice{font-size:15px;font-weight:700;letter-spacing:.3px}
+body .telemetry{padding:16px 18px}
+body .telemetry strong{font-size:54px;font-weight:700}
+body .telemetry div>span{font-size:11px;font-weight:700;color:var(--text-weich)}
+body #driveStatus{font-size:11px;font-weight:600;letter-spacing:.6px;color:var(--text-weich)}
+body .telemetry .health-track{height:8px;margin:10px 0 10px}
+body .health-track i{border-radius:99px;box-shadow:inset 0 1px 0 #ffffff55;background-image:linear-gradient(180deg,#ffffff40,#00000030);background-blend-mode:overlay;transition:width .2s}
+body .telemetry .module-status{border-top-color:var(--rand)}
+body .module-status span{font-size:11px!important;font-weight:600;color:var(--text-weich)!important}
+body .module-status .broken{color:var(--gefahr)!important}
+body .ammo{padding:12px 16px}
+body .ammo .eyebrow{font-size:10px}
+body .ammo>b{font-size:14px;font-weight:800;letter-spacing:.6px}
+body .ammo b span{font-size:18px;color:var(--akzent)}
+body .reload-track{height:8px;margin-top:2px}
+body .reload-track i{border-radius:99px;background-image:linear-gradient(90deg,#d9822f,#ffb36d);transition:width .1s linear}
+body .equipment{padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-weich)}
+body .equipment kbd,body .controls kbd{border-radius:6px;border:1px solid #ffffff55;background:#0e1712cc;color:var(--text);font-weight:700;padding:3px 7px}
+body .equipment>span:first-child b{color:#ffc58a}
+body .repair-track{height:6px}
+body .repair-track i{border-radius:99px;background:linear-gradient(90deg,#7fae6b,#bfe0a8)}
+body .map{padding:8px;border-radius:var(--r-l)}
+body .map canvas{border-radius:var(--r-s)}
+body .map>span{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--text-weich)}
+body .controls{font-size:12px;font-weight:500;color:var(--text);text-shadow:0 1px 4px #000;gap:16px;flex-wrap:wrap;padding:0 12px}
+body .tutorial{border-left:3px solid var(--akzent);padding:14px 18px 16px;animation:ih-fade .25s ease-out both}
+body .tutorial p{font-size:13px}
+body .tutorial ul{font-size:13px}
+body .tutorial .outline{width:44px;padding:0}
+body .respawn{padding:22px 38px;border-color:#f2a08466;border-radius:var(--r-l);box-shadow:var(--schatten-2)}
+body .respawn span{font-size:12px;font-weight:700;letter-spacing:1.6px;color:var(--gefahr)}
+body .respawn small{font-size:12px;color:var(--text-weich)}
+body .vehicle-label{font-size:11px;font-weight:700;letter-spacing:.6px;padding:3px 8px 5px;border-radius:99px;background:#0e1712b3;text-shadow:none}
+body .vehicle-label i{height:4px;border-radius:99px;margin-top:4px}
+body .fps{border-radius:99px;font-size:11px;padding:3px 10px}
+body .damage-flash{box-shadow:inset 0 0 160px 50px #d3493575}
+
+/* Touch-Steuerung: griffig, lesbar, mit Eindrück-Zustand */
+body .stick-base{border-color:#ffffff59;background:radial-gradient(circle,#15201a40,#15201a8c);box-shadow:0 4px 16px #0006,0 0 0 1px #0004 inset}
+body .stick-base i{background:radial-gradient(circle at 35% 30%,#ffc58a,#ef9c51 60%,#d9822f);box-shadow:0 4px 12px #0009,0 1px 0 #ffffff66 inset}
+body .stick-base span{font-size:11px;font-weight:700;color:#ffffffd0;text-shadow:0 1px 3px #000}
+body .t-btn{font-size:11px;font-weight:800;background:#121d17c4;border-color:#ffffff70;box-shadow:0 4px 12px #0007;transition:transform .08s,background .15s}
+body .t-btn.held{transform:scale(.94)}
+body .t-fire{font-size:15px;border-color:var(--akzent)}
+body .t-repair{font-size:9px}
+body .t-brake{font-size:10px;width:68px;height:48px}
+
+/* Handy */
+@media(max-width:800px){
+  body .topbar{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+  body h1{letter-spacing:-.04em}
+  body .primary{min-width:0;width:100%}
+  body .menu-links{flex-direction:column;max-width:370px}
+  body .intro{width:min(420px,88vw);padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  body .picker-row .map-picker select{font-size:13px;padding-left:10px;padding-right:6px}
+  body .mission{padding:12px 14px}
+  body .match-hud{padding:8px 16px;gap:14px}
+  body .match-hud>b{font-size:22px}
+  body .objective{padding:10px 14px}
+  body .tutorial{max-width:calc(100vw - 24px)}
+}
+@media(max-width:800px) and (orientation:portrait){
+  /* Hochformat: Einsatzbesprechung unten statt über dem HUD, Anzeigen entzerren */
+  body.touch-mode .tutorial{display:none}
+  body.touch-mode.playing .rotate-hint{top:116px;left:8px;transform:none;width:calc(100vw - 130px);padding:8px 12px;border-radius:var(--r-m);background:var(--glas);font-size:12px}
+  body.touch-mode .objective{max-width:calc(100vw - 150px)}
+  body.touch-mode .match-hud{top:64px;left:50%}
+  body.touch-mode .telemetry{top:176px;width:150px}
+  body.touch-mode .ammo{width:calc(100vw - 24px);left:12px;transform:none;bottom:max(8px,env(safe-area-inset-bottom))}
+  body.touch-mode .stick-base{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 64px);left:24px}
+  body.touch-mode .t-fire{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 70px);right:20px}
+  body.touch-mode .t-zoom{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 66px);right:128px}
+  body.touch-mode .t-smoke{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 178px);right:20px}
+  body.touch-mode .t-repair{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 150px);right:100px}
+  body.touch-mode .t-brake{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 64px);left:168px}
+}
+@media(max-height:760px){
+  body .mission{margin:10px 0;padding:9px 12px}
+  body .mission p{display:none}
+  body .vehicle-picker button{min-height:48px;padding-top:7px;padding-bottom:7px}
+  body .primary{min-height:50px}
+  body .training-link{min-height:44px;padding-top:0}
+  body .intro .menu-foot{margin-top:8px}
+  body .map-picker select{min-height:44px;padding-top:6px;padding-bottom:6px}
+}
+@media(max-height:500px){
+  body .topbar{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  body .intro .primary{min-height:48px}
+  body .vehicle-picker button{min-height:44px}
+  body .map-picker select{min-height:44px}
+  body .mission{display:none}
+}
+@media(max-width:800px){
+  body .grain{background:linear-gradient(180deg,#0c1410d9 0%,#0c1410bf 45%,#0c1410e6 100%)}
+  body .bottom-caption{display:none}
+  body .intro{bottom:0}
+}
+@media(max-width:540px){
+  body .vehicle-picker.five{display:grid;grid-template-columns:repeat(3,1fr)}
+  body .vehicle-picker.five button{padding-left:10px;padding-right:10px;text-align:left}
+  body .panel{padding:22px 18px}
+  body .result-stats b{font-size:28px}
+  body .teams{gap:8px}
+  body .room-code{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+  body .intro,body .vehicle-card,body .modal,body .panel,body .tutorial{animation:none!important}
+  body .primary:active,body .outline:active,body .t-btn.held{transform:none}
+}
+body .lobby-field{font-family:var(--schrift)!important;font-size:11px!important}
+body .join-row{align-items:stretch}
+body .join-row .outline{min-height:48px;margin:0}
