@@ -1313,7 +1313,7 @@
       map.strokeRect(center + target.root.position.x * scale - 3, center + target.root.position.z * scale - 3, 6, 6);
     });
     map.save(); map.translate(center + tank.root.position.x * scale, center + tank.root.position.z * scale); map.rotate(-hullYaw); map.fillStyle = '#f2eacb'; map.beginPath(); map.moveTo(0, -6); map.lineTo(4, 5); map.lineTo(0, 3); map.lineTo(-4, 5); map.closePath(); map.fill(); map.restore();
-    map.fillStyle = '#b3bea6'; map.font = '9px monospace'; map.fillText('N', 87, 9);
+    map.fillStyle = '#b3bea6'; map.font = '700 10px Bricolage, Arial, sans-serif'; map.fillText('N', 87, 9);
   }
   function updateHud() {
     $('speed').textContent = Math.round(Math.abs(velocity) * 3.6); $('gear').textContent = velocity > .2 ? 'D' : velocity < -.2 ? 'R' : 'N';
