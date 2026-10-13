@@ -5,7 +5,7 @@
   const start = $('startButton');
   function fail(message) { loadFailed = true; $('error').hidden = false; $('error').textContent = message; start.disabled = true; start.firstChild.textContent = 'START NICHT MÖGLICH '; }
   var loadFailed = false;
-  if (!window.THREE || !window.IronBattle || !window.IronSystems || !window.IronCareer || !window.IronMaps || !window.IronTerrain) { fail('Spieldateien konnten nicht geladen werden. Bitte lade die Seite neu und prüfe den Spielordner.'); return; }
+  if (!window.THREE || !window.IronBattle || !window.IronSystems || !window.IronCareer || !window.IronMaps || !window.IronTerrain || !window.IronModels || !window.IronFx) { fail('Spieldateien konnten nicht geladen werden. Bitte lade die Seite neu und prüfe den Spielordner.'); return; }
   const T = window.THREE;
   const Systems = window.IronSystems;
   const Career = window.IronCareer;
@@ -33,6 +33,12 @@
   sun.position.set(-65, 100, 45); sun.castShadow = true;
   Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 1, far: 280 });
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0005; scene.add(sun);
+  // Effects and atmosphere (fx.js): particles, debris, flash light, sky dome, drifting dust.
+  const sunDirection = sun.position.clone().normalize();
+  const fx = IronFx.create(T, scene, camera, renderer, (x, z) => ground(x, z));
+  const sky = IronFx.createSky(T, scene, sunDirection), motes = IronFx.createMotes(T, scene);
+  // Sun and sky light per map theme (the lighting values only colour the scene; nothing in the simulation reads them).
+  const LIGHTS = { forest: ['#ffe3b1', 1.35, '#e1e8df', '#645b3c', .75], quarry: ['#ffd5a0', 1.45, '#ecdfc9', '#74603f', .78], valley: ['#ffe6bd', 1.4, '#dde8ee', '#5b6340', .78] };
   const materials = {};
   function mat(color, roughness = .9) {
     const key = color + roughness;
@@ -48,7 +54,7 @@
   }
   let seed = 713;
   function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
-  const obstacles = [], solids = [], targets = [], particles = [], shells = [];
+  const obstacles = [], solids = [], targets = [], shells = [];
   function loadMap(id) {
     const next = IronMaps.levels[id] || IronMaps.levels.border;
     if (terrain && level === next) return;
@@ -56,6 +62,9 @@
     level = next; terrain = IronTerrain.build(T, level, { mat, box, cyl }); scene.add(terrain.group);
     obstacles.splice(0, obstacles.length, ...terrain.obstacles); solids.splice(0, solids.length, ...terrain.solids);
     scene.background.set(level.sky); scene.fog.color.set(level.sky); scene.fog.density = level.fog;
+    const [sunColor, sunPower, skyColor, groundColor, hemiPower] = LIGHTS[level.theme] || LIGHTS.forest;
+    sun.color.set(sunColor); sun.intensity = sunPower; hemi.color.set(skyColor); hemi.groundColor.set(groundColor); hemi.intensity = hemiPower;
+    sky.setLevel(level); fx.setFog(level.sky, level.fog); terrain.setQuality(quality);
   }
   function refreshMapUi() {
     $('mapSelect').value = level.id; $('mapDescription').textContent = level.description;
@@ -72,39 +81,9 @@
     $('pause').querySelector('.eyebrow').textContent = `${level.name.toUpperCase()} ${level.number}`;
     $('difficultyNote').textContent = { recruit: 'Gegner reagieren langsam, streuen stark und laden langsamer nach. Ideal zum Einstieg.', veteran: 'Ausgewogene Gegner mit Flanken und Rauch.', ace: 'Schnelle, genaue Gegner, die schneller nachladen und auf Seiten und Ketten zielen. +25 % Erfahrung.' }[difficulty] + ' Deine Verbündeten kämpfen immer wie Veteranen.';
   }
-  function makeTank(color) {
-    const root = new T.Group(); const wheels = []; root.rotation.order = 'YXZ';
-    box(3.1, .9, 5.1, color, root, 0, 1.15, 0);
-    const glacis = box(3, .42, 1.6, color, root, 0, 1.57, -1.8); glacis.rotation.x = -.2;
-    box(3.1, .12, 2, '#737957', root, 0, 1.65, 1.5);
-    for (const side of [-1, 1]) {
-      box(.78, 1.18, 5.45, '#343a31', root, side * 1.78, .73, 0);
-      box(.93, .16, 5.6, color, root, side * 1.78, 1.45, 0);
-      for (let j = 0; j < 6; j++) {
-        const wheel = cyl(.43, .43, .14, '#6b7153', root, side * 2.19, .72, -2.08 + j * .83);
-        wheel.rotation.z = Math.PI / 2; wheels.push(wheel);
-        const hub = cyl(.17, .17, .16, '#969573', wheel); hub.position.y = .01;
-      }
-      for (let j = 0; j < 14; j++) box(.81, .075, .17, '#77745c', root, side * 1.78, 1.33, -2.5 + j * .385);
-    }
-    const turret = new T.Group(); turret.position.y = 1.75; root.add(turret);
-    const turretBody = [cyl(1.2, 1.4, .85, color, turret, 0, .25, -.2, 7), box(1.6, .65, .6, color, turret, 0, .3, -1.1), cyl(.51, .54, .18, '#85896b', turret, .3, .8, .1, 10), box(.1, 2.5, .1, '#313c31', turret, -.8, 1.65, .55)];
-    // Casemate superstructure of the turretless Dachs; hidden for the other tanks.
-    const slope = box(3, .9, 1.4, color, root, 0, 1.98, -2.05); slope.rotation.x = .62;
-    const casemate = [box(3, 1.05, 3.4, color, root, 0, 2.08, -.25), slope, cyl(.46, .5, .3, '#85896b', root, .75, 2.75, .45, 10)];
-    casemate.forEach(mesh => { mesh.visible = false; });
-    const gun = new T.Group(); gun.position.set(0, .3, -1.25); turret.add(gun);
-    const barrel = cyl(.105, .14, 3, '#4c5944', gun, 0, 0, -1.45); barrel.rotation.x = Math.PI / 2;
-    const muzzle = cyl(.16, .16, .3, '#333f32', gun, 0, 0, -3); muzzle.rotation.x = Math.PI / 2;
-    box(.8, .15, 1.05, '#545e46', root, -1, 1.75, 1.6);
-    box(.7, .4, .85, '#897b55', root, 1, 1.8, 1.7);
-    for (const x of [-1.2, 1.2]) box(.26, .2, .12, '#e3d9b0', root, x, 1.35, -2.58);
-    // Painted recognition stripes on the hull.
-    box(.08, .35, .8, '#dbc990', root, 1.565, 1.2, -.6);
-    box(.08, .35, .8, '#dbc990', root, -1.565, 1.2, -.6);
-    const hullMeshes = []; root.traverse(object => { if (object.isMesh && object.material === mat(color)) { object.material = object.material.clone(); hullMeshes.push(object); } });
-    scene.add(root); return { root, turret, gun, wheels, turretBody, casemate, gunBase: -1.25, hullMeshes };
-  }
+  const Models = IronModels.create(T);
+  // Tank models are built (and merged) in models.js; the scene gets one root per vehicle.
+  function makeTank(color) { const model = Models.createTank(color); scene.add(model.root); return model; }
   // Model proportions per vehicle: hull, turret and gun scale; the Dachs swaps its turret for a casemate.
   const LOOKS = {
     luchs: { hull: [1, 1, 1], turret: [1, 1, 1], gun: [1, 1, 1] },
@@ -116,29 +95,12 @@
   const tank = makeTank('#737c50');
   const player = { ...tank, id: 'player', slot: 0, team: 'blue', callsign: 'DU', hp: 100, alive: true, respawn: 0, shield: 3, hitMeshes: [], yaw: 0, profile: Systems.profiles.luchs, systems: Systems.fresh(), lastHit: null };
   tank.root.traverse(object => { if (object.isMesh) { object.userData.vehicle = player; player.hitMeshes.push(object); } });
-  const paintMeshes = [];
-  paintMeshes.push(...tank.hullMeshes);
-  const paintTextures = new Map();
+  // Camouflage: one pattern per paint (models.js); the plain olive paint keeps the weathered base texture.
   function applyPaint() {
     const paint = Career.paints.find(p => p.id === careerStore.state.paints[player.profile.id]) || Career.paints[0];
-    let texture = null;
-    if (paint.id !== 'olive') {
-      if (!paintTextures.has(paint.id)) {
-        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256; const context = canvas.getContext('2d');
-        context.fillStyle = paint.colors[0]; context.fillRect(0, 0, 256, 256);
-        let patternSeed = 731;
-        const patternRandom = () => { patternSeed = (patternSeed * 1664525 + 1013904223) >>> 0; return patternSeed / 4294967296; };
-        for (let i = 0; i < 38; i++) {
-          const x = patternRandom() * 256, y = patternRandom() * 256; context.fillStyle = paint.colors[1 + i % (paint.colors.length - 1)];
-          context.beginPath(); context.moveTo(x, y);
-          for (let n = 0; n < 6; n++) { const angle = n * Math.PI / 3; context.lineTo(x + Math.cos(angle) * (12 + patternRandom() * 45), y + Math.sin(angle) * (10 + patternRandom() * 35)); }
-          context.closePath(); context.fill();
-        }
-        const created = new T.CanvasTexture(canvas); created.encoding = T.sRGBEncoding; created.wrapS = created.wrapT = T.RepeatWrapping; paintTextures.set(paint.id, created);
-      }
-      texture = paintTextures.get(paint.id);
-    }
-    for (const mesh of paintMeshes) { mesh.material.map = texture; mesh.material.color.set(texture ? '#ffffff' : '#737c50').convertSRGBToLinear(); mesh.material.needsUpdate = true; }
+    const material = tank.hullMaterial, camo = paint.id !== 'olive';
+    material.map = camo ? Models.paintTexture(paint) : Models.wearTexture();
+    material.color.set(camo ? '#ffffff' : '#737c50').convertSRGBToLinear(); material.needsUpdate = true;
   }
   const targetPlaces = level.training;
   targetPlaces.forEach(([x, z], i) => {
@@ -159,7 +121,7 @@
   function applyProfile(vehicle, id) {
     vehicle.profile = Systems.profiles[id]; const look = LOOKS[id], casemate = !!look.casemate;
     vehicle.root.scale.set(...look.hull);
-    vehicle.turretBody.forEach(mesh => { mesh.visible = !casemate; }); vehicle.casemate.forEach(mesh => { mesh.visible = casemate; });
+    vehicle.setLook(id, casemate);
     vehicle.turret.position.y = casemate ? 1.62 : 1.75; vehicle.gunBase = casemate ? -2.5 : -1.25; vehicle.gun.position.set(0, casemate ? .45 : .3, vehicle.gunBase);
     vehicle.turret.scale.set(...look.turret); vehicle.gun.scale.set(...look.gun);
     refreshHitMeshes(vehicle);
@@ -170,6 +132,7 @@
     vehicle.hitMeshes.length = 0;
     vehicle.root.traverse(object => {
       if (!object.isMesh) return;
+      if (object.userData.noHit) return;
       for (let node = object; node && node !== vehicle.root; node = node.parent) if (!node.visible) return;
       vehicle.hitMeshes.push(object);
     });
@@ -201,17 +164,33 @@
     applyPaint(); refreshCareer(); refreshStart();
   }
   // Objective markers: A always, B in Durchbruch, B and C in Eroberung. Ring radius is scaled per point.
+  // Objective marker: glowing band with an inner ring, a soft floor tint, a tapered pole and a waving pennant.
+  const zoneGlow = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 20, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.8, 'rgba(255,255,255,.22)'); g.addColorStop(1, 'rgba(255,255,255,.55)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new T.CanvasTexture(c); })();
   function makeZone() {
     const group = new T.Group(); scene.add(group);
-    const ring = new T.Mesh(new T.RingGeometry(16.7, 17, 80), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = .11; group.add(ring);
-    cyl(.1, .14, 8, '#c4c8af', group, 0, 4, 0, 8);
-    const flag = box(3, 1.5, .06, '#b8ae83', group, 1.5, 7, 0); flag.material = flag.material.clone();
-    return { group, ring, flag };
+    const rim = new T.Group(); rim.position.y = .11; group.add(rim);
+    const flat = mesh => { mesh.rotation.x = -Math.PI / 2; rim.add(mesh); return mesh; };
+    const ring = flat(new T.Mesh(new T.RingGeometry(16.55, 17, 96), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide })));
+    const dashes = flat(new T.Mesh(new T.RingGeometry(15.6, 15.78, 96), new T.MeshBasicMaterial({ color: '#dfc18c', side: T.DoubleSide, transparent: true, opacity: .55 })));
+    const fill = flat(new T.Mesh(new T.CircleGeometry(16.55, 64), new T.MeshBasicMaterial({ color: '#dfc18c', map: zoneGlow, transparent: true, opacity: .55, depthWrite: false, side: T.DoubleSide })));
+    fill.position.z = -.02;
+    const pole = new T.Mesh(new T.CylinderGeometry(.07, .15, 8, 8), mat('#c4c8af')); pole.position.y = 4; pole.castShadow = true; group.add(pole);
+    const knob = new T.Mesh(new T.SphereGeometry(.2, 8, 6), mat('#d6b34a')); knob.position.y = 8.1; group.add(knob);
+    const clothGeometry = new T.PlaneGeometry(3, 1.5, 10, 4); clothGeometry.translate(1.5, 0, 0);
+    const flag = new T.Mesh(clothGeometry, new T.MeshStandardMaterial({ color: new T.Color('#b8ae83').convertSRGBToLinear(), roughness: .8, side: T.DoubleSide })); flag.position.y = 7.1; flag.castShadow = true; group.add(flag);
+    return { group, ring, rim, flag, tints: [ring.material, dashes.material, fill.material], cloth: clothGeometry };
   }
   const zones = [makeZone(), makeZone(), makeZone()];
-  function placeZone(zone, point) { zone.group.position.set(point.x, ground(point.x, point.z), point.z); zone.ring.scale.setScalar(point.radius / 17); zone.group.visible = true; }
-  function colorZone(zone, color) { zone.ring.material.color.set(color); zone.flag.material.color.set(color).convertSRGBToLinear(); }
+  function placeZone(zone, point) { zone.group.position.set(point.x, ground(point.x, point.z), point.z); zone.rim.scale.setScalar(point.radius / 17); zone.group.visible = true; }
+  function colorZone(zone, color) { for (const material of zone.tints) material.color.set(color); zone.flag.material.color.set(color).convertSRGBToLinear(); }
+  // The pennant ripples in the wind (pure visual: vertices only).
+  function waveFlags(t) {
+    for (const zone of zones) {
+      if (!zone.group.visible) continue; const position = zone.cloth.attributes.position;
+      for (let i = 0; i < position.count; i++) { const x = position.getX(i); position.setZ(i, Math.sin(x * 2.4 - t * 5 + zone.group.position.x) * .16 * x / 3); position.setY(i, position.getY(i)); }
+      position.needsUpdate = true;
+    }
+  }
   const MISSIONS = ['domination', 'attack', 'defense', 'conquest', 'laststand'];
   let gameType = 'battle', match = new IronBattle.Match(), stats = { hits: 0, kills: 0, deaths: 0, captureSeconds: 0 }, damageTime = 0, matchMission = 'domination';
   const freshStats = () => ({ hits: 0, kills: 0, deaths: 0, captureSeconds: 0, ricochets: 0, bounced: 0, soloCaptures: 0, fieldRepairs: 0 });
@@ -234,7 +213,7 @@
   let teamSkill = { blue: matchDifficulty, red: matchDifficulty }, playerSkill = null, skillOverride = null;
   const skillOf = vehicle => vehicle === player && playerSkill ? playerSkill : teamSkill[vehicle.team];
   const particleGeometry = new T.SphereGeometry(1, 5, 4);
-  const puffMaterials = ['#d8c4a0', '#edb36b', '#a29a7d', '#f4d28a', '#fff0b3'].map(color => new T.MeshBasicMaterial({ color }));
+  const shellMaterial = new T.MeshBasicMaterial({ color: '#ffe9a8' });
   const events = [], killLog = []; let previousOwner = null, previousOwners = [], autopilot = false;
   try { const saved = JSON.parse(localStorage.getItem('iron-horizon-settings') || '{}'); sensitivity = Math.max(.4, Math.min(2, Number(saved.sensitivity) || 1)); if (typeof saved.shake === 'boolean') shakeEnabled = saved.shake; if (Systems.profiles[saved.vehicle]) selectedVehicle = saved.vehicle; if (Object.hasOwn(IronMaps.levels, saved.map)) selectedMap = saved.map; if (['high', 'medium', 'low'].includes(saved.quality)) quality = saved.quality; introSeen = saved.intro === true; if (Object.hasOwn(IronBattle.difficulties, saved.difficulty)) difficulty = saved.difficulty; invertY = saved.invertY === true; showFps = saved.fps === true; if (MISSIONS.includes(saved.mission)) mission = saved.mission; } catch (_) { /* Storage may be disabled. */ }
   // Olympiade: Mit ?olymp=… im Link kämpft die ganze Olympia-Gruppe in einem gemeinsamen Online-Gefecht
@@ -277,6 +256,7 @@
       sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
       scene.traverse(object => { if (object.material) object.material.needsUpdate = true; });
     }
+    fx.setQuality(quality); if (terrain) terrain.setQuality(quality);
     resize();
   }
   $('quality').onchange = event => { if (!['high', 'medium', 'low'].includes(event.target.value)) return; quality = event.target.value; saveSettings(); applyQuality(); };
@@ -358,25 +338,10 @@
     } catch (_) { if (roundId === id) { $('earnedXp').textContent = 'Fortschritt nicht verbucht'; $('saveStatus').textContent = 'Der Spielstand konnte nicht aktualisiert werden. Ein Export des bestehenden Profils bleibt möglich.'; } }
   }
   function notify(message, seconds = 3) { $('notice').textContent = message; noticeTime = seconds; }
-  // Bright, fast, short-lived sparks at the impact point; ricochets spray along the deflected path.
-  function sparks(position, count, along = null) {
-    for (let i = 0; i < count && particles.length < 150; i++) {
-      const mesh = new T.Mesh(particleGeometry, puffMaterials[4]); mesh.position.copy(position); mesh.scale.setScalar(.05 + random() * .06); scene.add(mesh);
-      const velocity = new T.Vector3((random() - .5) * 14, 2 + random() * 8, (random() - .5) * 14);
-      if (along) velocity.addScaledVector(along, 18);
-      particles.push({ mesh, life: .18 + random() * .25, max: .4, velocity, kind: 4 });
-    }
-  }
   let markerTimer;
   function hitMarker(kind, text) {
     const marker = $('hitMarker'); marker.className = `hit-marker ${kind}`; marker.dataset.text = text; marker.hidden = false;
     clearTimeout(markerTimer); markerTimer = setTimeout(() => { marker.hidden = true; }, kind === 'kill' ? 1100 : 650);
-  }
-  function puff(position, count, kind = 0) {
-    for (let i = 0; i < count && particles.length < 130; i++) {
-      const mesh = new T.Mesh(particleGeometry, puffMaterials[kind]); mesh.position.copy(position); mesh.scale.setScalar(.08 + random() * .2); scene.add(mesh);
-      particles.push({ mesh, life: .5 + random() * .8, max: 1.3, velocity: new T.Vector3((random() - .5) * 6, random() * 4, (random() - .5) * 6), kind });
-    }
   }
   const smokeClouds = [];
   const smokeCanvas = document.createElement('canvas'); smokeCanvas.width = smokeCanvas.height = 64;
@@ -477,7 +442,7 @@
     $('respawn').querySelector('b').innerHTML = match.mode === 'laststand' ? 'Kein Wiedereinstieg <i id="respawnTime"></i>' : 'Wiedereinstieg in <i id="respawnTime">6</i>';
     $('result').hidden = $('respawn').hidden = $('damageFlash').hidden = true;
     for (const shell of shells) scene.remove(shell.mesh); shells.length = 0;
-    for (const particle of particles) scene.remove(particle.mesh); particles.length = 0;
+    fx.clear(); damageClock.clear();
     updateTank(); scene.updateMatrixWorld(true); updateCamera(1, true);
     $('score').textContent = '0 / 5 ZIELE GETROFFEN';
     updateHud();
@@ -810,30 +775,49 @@
   }
   const vec3 = v => [Math.round(v.x * 1000) / 1000, Math.round(v.y * 1000) / 1000, Math.round(v.z * 1000) / 1000];
   function spawnShell(vehicle, origin, dir) {
-    const mesh = new T.Mesh(particleGeometry, puffMaterials[3]); mesh.scale.set(.07, .07, .2); mesh.position.copy(origin); scene.add(mesh);
+    const mesh = new T.Mesh(particleGeometry, shellMaterial); mesh.scale.set(.08, .08, .5); mesh.position.copy(origin); mesh.lookAt(origin.x + dir.x, origin.y + dir.y, origin.z + dir.z); scene.add(mesh);
     shells.push({ mesh, velocity: dir.clone().normalize().multiplyScalar(95), life: 5, owner: vehicle });
-    puff(origin, vehicle === player ? 13 : 6, 1);
+    fx.muzzleFlash(origin, direction.copy(dir).normalize(), vehicle === player ? 1 : .85);
+  }
+  // A destroyed vehicle blows up: fireball, flying parts in its own colours, then a burning wreck's smoke column.
+  function wreck(victim) {
+    const at = victim.root.position, big = victim.profile.id === 'baer' ? 1.35 : victim.profile.id === 'wiesel' ? .8 : 1;
+    fx.explosion({ x: at.x, y: at.y + 1.7, z: at.z }, big, '#' + victim.hullMaterial.color.clone().convertLinearToSRGB().getHexString());
+  }
+  // Wounded vehicles trail smoke and, close to death, flames.
+  const damageClock = new Map();
+  function vehicleFx(dt) {
+    if (gameType !== 'battle') return;
+    for (const vehicle of [player, ...targets]) {
+      if (!vehicle.alive || !vehicle.root.visible || vehicle.hp >= 45) continue;
+      const t = (damageClock.get(vehicle) || 0) - dt; if (t > 0) { damageClock.set(vehicle, t); continue; }
+      const severity = 1 - vehicle.hp / 45; damageClock.set(vehicle, .1 + (1 - severity) * .35);
+      const yaw = vehicle.root.rotation.y, p = vehicle.root.position;
+      temp.set(p.x + Math.sin(yaw) * 1.6, p.y + 1.9 * vehicle.root.scale.y, p.z + Math.cos(yaw) * 1.6);
+      fx.damage(temp, severity);
+    }
   }
   function impact(hit, shell) {
-    puff(hit.point, 17, hit.object.userData.target === undefined ? 0 : 1);
+    // Ground and structures throw dirt or stone; vehicles get sparks or fire depending on what the hit does (below).
+    if (hit.object.userData.target === undefined && !hit.object.userData.vehicle) fx.impactGround(hit.point, hit.object === terrain.ground ? level.road : level.wall, hit.object !== terrain.ground);
     const targetId = hit.object.userData.target;
     if (gameType === 'training' && targetId !== undefined) {
       const target = targets[targetId];
       if (!target.hits) { hitCount++; target.ring.material.color.set('#a5c596'); }
-      sparks(hit.point, 10); hitMarker(target.hits ? 'hit' : 'module', 'TREFFER');
+      fx.impactArmour(hit.point); hitMarker(target.hits ? 'hit' : 'module', 'TREFFER');
       target.hits++;
       $('score').textContent = `${hitCount} / 5 ZIELE GETROFFEN`;
       notify(hitCount === 5 ? 'ÜBUNG ABGESCHLOSSEN · 5 / 5\nErkunde weiter oder starte im Pausenmenü neu.' : `TREFFER · ZIEL ${targetId + 1}\n${hitCount} von 5 Zielen erfasst`, hitCount === 5 ? 8 : 2.5);
     } else if (gameType === 'battle' && hit.object.userData.vehicle) {
       const victim = hit.object.userData.vehicle, attacker = shell.owner;
       if (!victim.alive || victim.team === attacker.team) return;
-      if (net && !net.host) { sparks(hit.point, 6); return; }
-      if (victim.shield > 0) { if (attacker === player) notify('ZIEL HAT STARTSCHUTZ', 1); emit({ k: 'shield', a: attacker.slot }); return; }
+      if (net && !net.host) { fx.impactArmour(hit.point); return; }
+      if (victim.shield > 0) { fx.ricochet(hit.point, shell.velocity.clone().normalize().negate()); if (attacker === player) notify('ZIEL HAT STARTSCHUTZ', 1); emit({ k: 'shield', a: attacker.slot }); return; }
       const path = shell.velocity.clone().normalize();
       // Angle between the shell path and the struck plate decides between ricochet and penetration.
       const normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : path.clone().negate();
       if (Systems.ricochet(Math.abs(normal.dot(path)))) {
-        sparks(hit.point, 7, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
+        fx.ricochet(hit.point, path.clone().addScaledVector(normal, -2 * normal.dot(path)).normalize());
         if (attacker === player) ownBounce();
         if (victim === player) bouncedOffMe();
         emit({ k: 'bounce', a: attacker.slot, v: victim.slot });
@@ -844,7 +828,7 @@
       const moduleHit = Systems.hitModule(victim.systems, victim.root.worldToLocal(hit.point.clone()), victim.profile);
       const damage = Systems.damage(incidence, attacker.profile, victim.profile, moduleHit);
       const where = { front: 'FRONT', side: 'SEITE', rear: 'HECK' }[facing];
-      victim.hp = Math.max(0, victim.hp - damage); sparks(hit.point, 10);
+      victim.hp = Math.max(0, victim.hp - damage); fx.impactArmour(hit.point, victim.hp === 0);
       emit({ k: 'hit', a: attacker.slot, v: victim.slot, dmg: damage, w: where, mod: moduleHit, kill: victim.hp === 0 ? 1 : 0 });
       if (attacker === player) ownHit(victim, damage, where, moduleHit);
       if (victim === player) hitMe(attacker, where, moduleHit);
@@ -855,7 +839,7 @@
       }
       if (victim.hp === 0) {
         victim.alive = false; victim.respawn = match.mode === 'laststand' ? Infinity : 6; victim.root.visible = false;
-        puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
+        wreck(victim); match.lose(victim.team); killLog.push([attacker.profile.id, victim.profile.id, attacker.team]);
         if (victim === player) killedMe(where);
         else { victim.label.hidden = true; victim.ring.visible = false; }
         if (attacker === player) ownKill(victim, where);
@@ -1017,9 +1001,9 @@
       const pace = (Math.abs(delta) < .4 ? Math.min(7.5, bot.profile.speed * .7) : 2.5) * Systems.mobility(bot.systems) * slopeFactor(bot.root.position.x, bot.root.position.z, bot.yaw);
       const nx = bot.root.position.x - Math.sin(bot.yaw) * pace * dt, nz = bot.root.position.z - Math.cos(bot.yaw) * pace * dt;
       if (!blocked(nx, nz, bot)) {
-        bot.root.position.x = nx; bot.root.position.z = nz; bot.stuck = 0; bot.speedNow = pace; for (const wheel of bot.wheels) wheel.rotation.x += pace * dt;
+        bot.root.position.x = nx; bot.root.position.z = nz; bot.stuck = 0; bot.speedNow = pace; bot.spin(pace * dt);
         bot.dust = (bot.dust || 0) + dt;
-        if (pace > 5 && bot.dust > .22 && particles.length < 110) { bot.dust = 0; temp.set(nx + Math.sin(bot.yaw) * 2.4, 0, nz + Math.cos(bot.yaw) * 2.4); temp.y = ground(temp.x, temp.z) + .3; puff(temp, 1, 2); }
+        if (pace > 5 && bot.dust > .22) { bot.dust = 0; temp.set(nx + Math.sin(bot.yaw) * 2.4, 0, nz + Math.cos(bot.yaw) * 2.4); temp.y = ground(temp.x, temp.z) + .3; fx.dust(temp, level.road, pace); }
       }
       else {
         bot.stuck += dt;
@@ -1227,24 +1211,19 @@
     if (!autopilot) aim(dt);
     reload = Math.max(0, reload - dt); recoil *= Math.exp(-7 * dt); updateTank();
     player.yaw = hullYaw;
-    for (const wheel of tank.wheels) wheel.rotation.x += velocity * dt * 1.5;
+    tank.spin(velocity * dt);
     dustTime += dt;
-    if (dustTime > .11 && Math.abs(velocity) > 2) { dustTime = 0; temp.copy(tank.root.position); temp.x += Math.sin(hullYaw) * 2; temp.z += Math.cos(hullYaw) * 2; temp.y = ground(temp.x, temp.z) + .3; puff(temp, 2, 2); }
+    if (dustTime > .11 && Math.abs(velocity) > 2) { dustTime = 0; temp.copy(tank.root.position); temp.x += Math.sin(hullYaw) * 2; temp.z += Math.cos(hullYaw) * 2; temp.y = ground(temp.x, temp.z) + .3; fx.dust(temp, level.road, Math.abs(velocity)); fx.dust(temp, level.road, Math.abs(velocity)); }
     scene.updateMatrixWorld(true);
     for (let i = shells.length - 1; i >= 0; i--) {
-      const shell = shells[i]; shell.life -= dt; shell.velocity.y -= 3 * dt;
+      const shell = shells[i]; shell.life -= dt; shell.velocity.y -= 3 * dt; fx.trail(shell.mesh.position.x, shell.mesh.position.y, shell.mesh.position.z);
       const distance = shell.velocity.length() * dt; ray.set(shell.mesh.position, direction.copy(shell.velocity).normalize()); ray.far = distance;
       const hits = ray.intersectObjects(shotObjects(shell.owner), false), groundDistance = groundRay(shell.mesh.position, direction, distance);
       if (groundDistance !== null && (!hits.length || groundDistance < hits[0].distance)) { impact({ point: shell.mesh.position.clone().addScaledVector(direction, groundDistance), object: terrain.ground }, shell); shell.life = 0; }
       else if (hits.length) { impact(hits[0], shell); shell.life = 0; } else shell.mesh.position.addScaledVector(shell.velocity, dt);
       if (shell.life <= 0) { scene.remove(shell.mesh); shells.splice(i, 1); }
     }
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i]; p.life -= dt; p.mesh.position.addScaledVector(p.velocity, dt); p.velocity.multiplyScalar(Math.exp(-2 * dt));
-      p.mesh.scale.multiplyScalar(1 + dt * (p.kind === 2 ? 1.3 : .4));
-      if (p.life < .2) p.mesh.scale.multiplyScalar(.9);
-      if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
-    }
+    fx.update(dt); vehicleFx(dt);
     noticeTime -= dt; if (noticeTime <= 0) $('notice').textContent = '';
     if (tutorialTime > 0) { tutorialTime -= dt; if (tutorialTime <= 0) $('tutorial').hidden = true; }
     damageTime = Math.max(0, damageTime - dt);
@@ -1254,7 +1233,9 @@
   }
   // Letztes Gefecht: once the own tank is out, the camera follows a teammate who is still fighting.
   function spectated() { return gameType === 'battle' && match.mode === 'laststand' && !player.alive ? targets.find(t => t.alive && t.team === player.team) || null : null; }
+  let debugView = null;
   function updateCamera(dt, immediate = false) {
+    if (debugView) { camera.position.set(...debugView.from); camera.lookAt(...debugView.at); camera.fov = debugView.fov || 45; camera.updateProjectionMatrix(); camera.updateMatrixWorld(); return; }
     if (mode === 'menu') {
       const a = .7 + Math.sin(elapsed * .065) * .12;
       const baseY = tank.root.position.y;
@@ -1467,10 +1448,11 @@
     else if (e.k === 'bounce') { if (e.a === mine) ownBounce(); if (e.v === mine) bouncedOffMe(); }
     else if (e.k === 'hit' && attacker && victim) {
       victim.hp = Math.max(0, victim.hp - e.dmg);
+      if (!e.kill) fx.impactArmour({ x: victim.root.position.x, y: victim.root.position.y + 1.6, z: victim.root.position.z });
       if (e.a === mine) ownHit(victim, e.dmg, e.w, e.mod);
       if (e.v === mine) hitMe(attacker, e.w, e.mod);
       if (e.kill) {
-        victim.alive = false; puff(victim.root.position.clone().setY(victim.root.position.y + 1.8), 30, 1);
+        victim.alive = false; wreck(victim);
         if (victim === player) { killedMe(e.w); tank.root.visible = false; } else { victim.root.visible = false; victim.label.hidden = true; }
         if (e.a === mine) ownKill(victim, e.w);
       }
@@ -1560,6 +1542,7 @@
     const running = mode === 'playing' || (net && mode === 'paused');
     if (running) { accumulator += dt; while (accumulator >= 1 / 60 && (mode === 'playing' || (net && mode === 'paused'))) { step(1 / 60); accumulator -= 1 / 60; } updateCamera(dt); hudTime += dt; if (hudTime > .06) { updateHud(); hudTime = 0; } }
     else { accumulator = 0; if (mode === 'menu') updateCamera(dt); }
+    sky.update(camera.position, dt); motes.update(camera.position, dt, quality !== 'low' && mode !== 'menu' && mode !== 'result'); terrain.update(elapsed); waveFlags(elapsed); fx.flush();
     renderer.render(scene, camera);
   }
   reset(); applyQuality(); updateCamera(1, true); updateHud();
@@ -1577,18 +1560,22 @@
     targets.forEach((target, i) => applyProfile(target, vehicles[i + 1]));
     autopilot = true; skillOverride = { blue: allies, red: null, player: playerLevel }; reset();
     Object.assign(player, freshTactics(player), { number: 3, holdIndex: 2, path: [], navigationTimer: 0, thinkTimer: 0, enemy: null, stuck: 0, reaction: 1, reload: 1, turretYaw: 0 });
-    mode = 'playing';
+    mode = 'playing'; fx.enabled = false;
     let elapsedMatch = 0;
     for (let i = 0; i < 1000 * 60 && mode === 'playing'; i++) { step(1 / 60); elapsedMatch += 1 / 60; }
     const out = { result: match.result, tickets: { ...match.tickets }, seconds: Math.round(elapsedMatch), captured: match.captured ?? null, kills: killLog.map(k => [...k]) };
-    autopilot = false; skillOverride = null; ({ selectedMap, selectedVehicle, difficulty, gameType, mission } = saved);
+    fx.enabled = true; autopilot = false; skillOverride = null; ({ selectedMap, selectedVehicle, difficulty, gameType, mission } = saved);
     targets.forEach((target, i) => applyProfile(target, i === 1 || i === 3 ? 'keiler' : 'luchs'));
     mode = 'menu'; garage();
     return out;
   }
   // Test hook: feeds synthetic frame times into the automatic graphics check.
   function sampleFrames(fps, seconds) { for (let i = 0; i < Math.round(fps * seconds); i++) { elapsed += 1 / fps; watchFrameRate(1 / fps); } return quality; }
-  window.ironHorizon = Object.freeze({ sim, balance, sampleFrames, getState: () => ({
+  // Test helper: a free camera for close-up screenshots; view(null) hands the camera back.
+  const view = (from, at, fov) => { debugView = from ? { from, at, fov } : null; updateCamera(1, true); };
+  const demo = (kind, x, z) => { const y = ground(x, z), p = new T.Vector3(x, y + 1.5, z), up = new T.Vector3(0, 1, 0); const forward = new T.Vector3(0, .05, -1);
+    if (kind === 'explosion') fx.explosion(p, 1); else if (kind === 'muzzle') fx.muzzleFlash(p, forward, 1); else if (kind === 'ground') fx.impactGround(new T.Vector3(x, y, z), level.road); else if (kind === 'armour') fx.impactArmour(p, true); else if (kind === 'ricochet') fx.ricochet(p, up.clone().add(forward)); else if (kind === 'dust') for (let i = 0; i < 12; i++) fx.dust(new T.Vector3(x + i * .4, y + .3, z), level.road, 12); else if (kind === 'damage') { for (let i = 0; i < 14; i++) setTimeout(() => fx.damage(p, 1), i * 90); } };
+  window.ironHorizon = Object.freeze({ sim, balance, sampleFrames, view, demo, debug: { scene, renderer, camera, fx, sky, motes, sun, hemi }, stepFx: seconds => { for (let i = 0; i < Math.round(seconds * 60); i++) fx.update(1 / 60); }, getState: () => ({
     mode, gameType, touchMode, quality, online: net ? { host: net.host, slot: net.slot, team: player.team } : null, team: player.team, difficulty: matchDifficulty.id, mission: matchMission, skills: { blue: teamSkill.blue.id, red: teamSkill.red.id }, dachsLocked: dachsLocked(), gun: (() => { const at = tank.gun.getWorldPosition(new T.Vector3()); let shown = true; for (let node = tank.gun; node; node = node.parent) shown = shown && node.visible; return { x: at.x, y: at.y, z: at.z, pitch: tank.gun.rotation.x, shown, scale: tank.gun.scale.toArray(), children: tank.gun.children.length }; })(), ground: ground(tank.root.position.x, tank.root.position.z), tilt: { pitch: tank.root.rotation.x, roll: tank.root.rotation.z }, awards: [...careerStore.state.awards], invertY, events: events.map(e => ({ ...e })), map: level.id, capture: { ...level.capture }, renderedGeometries: renderer.info.memory.geometries, pointerLocked: document.pointerLockElement === $('world'), vehicle: player.profile.id,
     position: { x: tank.root.position.x, z: tank.root.position.z }, speed: velocity, hullYaw, turretYaw, viewYaw, reload, hitCount,
     hp: player.hp, alive: player.alive, respawn: player.respawn, systems: { ...player.systems }, smokeClouds: smokeClouds.length, ownSmoke: smokeClouds.filter(cloud => cloud.owner === player).length, shells: shells.length, shellOwners: shells.map(shell => shell.owner.slot),

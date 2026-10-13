@@ -145,6 +145,8 @@ Der Spielstand liegt unter `iron-horizon-career-v1` im lokalen Browser-Speicher;
 - `systems.js`: Fahrzeugprofile, Module, Reparatur, Abpraller, Schaden, Streuung und Rauch-Sichtprüfung.
 - `maps.js`: Kartendaten (Starts, Ziele, Überwachungsstellungen, Flanken, Punkt B, Hindernisse) und die Höhenfunktion des Flusstals.
 - `terrain.js`: statische 3D-Geometrie; Reliefnetz mit Farbverlauf, Bach und Brücke für das Flusstal. Ein Kartenwechsel gibt die alte Geometrie frei.
+- `models.js`: prozedurale Panzermodelle. Alle Formen entstehen im Code aus Grundkörpern und werden zu wenigen Meshes verschmolzen (Vertexfarben, eingebackene Schattierung); dazu Verschleiß- und Tarntexturen (Canvas) und laufende Kettenglieder. Jeder der fünf Typen hat eigene Anbauteile (Schürzen, Bugpanzerung, Mündungsbremsen, Antennen, Radarschirm, Tarnnetz).
+- `fx.js`: Partikel (Staub, Rauch, Feuer, Funken als zwei GPU-Punktebenen), fliegende Trümmer (Instanzen), kurzer Blitz-Lichtschein, Himmel (Verlaufskuppel, Sonnenglanz, Wolken) und schwebender Staub. Effekte nutzen eigene Zufallszahlen und berühren die Spielsimulation nicht. Die Grafikstufe steuert Menge und Details (Gras nur auf „Hoch“, Kleinkram ab „Mittel“, Licht-Blitze nur auf „Hoch“).
 - `online.js`: Lobby, WebSocket-Verbindung und Einladungslink; das Gefecht selbst steuert `game.js` (Gastgeber sendet Lagebilder und Ereignisse, Mitspieler ihre Eingaben).
 - `../raeume.js`: Räume auf dem Server (Code, Teams, Panzer, Plätze, Weiterleitung).
 - `career.js`: Erfahrung, Ränge, Tarnungen, Auszeichnungen, Fahrzeugfreischaltung, Spielstandprüfung und Speicherung.
